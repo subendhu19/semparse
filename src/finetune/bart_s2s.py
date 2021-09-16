@@ -88,6 +88,8 @@ if __name__ == "__main__":
         use_cuda=args.gpu
     )
 
+    model.train_model(train_df, eval_data=eval_df)
+
     to_predict = [
         prefix + ": " + str(input_text)
         for prefix, input_text in zip(eval_df["prefix"].tolist(), eval_df["input_text"].tolist())
