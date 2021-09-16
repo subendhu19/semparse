@@ -51,7 +51,7 @@ if __name__ == "__main__":
     model_args.do_sample = False
     model_args.eval_batch_size = 32
     model_args.evaluate_during_training = True
-    model_args.evaluate_during_training_steps = 500
+    # model_args.evaluate_during_training_steps = 500
     model_args.evaluate_during_training_verbose = True
     model_args.fp16 = False
     model_args.learning_rate = 5e-5
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     model_args.top_p = 0.95
     model_args.train_batch_size = 8
     model_args.use_multiprocessing = False
-    model_args.wandb_project = "Semantic Parsing with BART"
+    # model_args.wandb_project = "Semantic Parsing with BART"
 
     model = Seq2SeqModel(
         encoder_decoder_type="bart",
@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     preds = model.predict(to_predict)
 
-    with open(f"{out_folder}/paws/predictions_{datetime.now()}.txt", "w") as f:
+    with open(f"{out_folder}/predictions_{datetime.now()}.txt", "w") as f:
         for i, text in enumerate(test_df["input_text"].tolist()):
             f.write(str(text) + "\n\n")
 
@@ -92,8 +92,7 @@ if __name__ == "__main__":
             f.write(truth[i] + "\n\n")
 
             f.write("Prediction:\n")
-            for pred in preds[i]:
-                f.write(str(pred) + "\n")
+            f.write(str(preds[i]) + "\n")
             f.write(
                 "________________________________________________________________________________\n"
             )
