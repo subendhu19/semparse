@@ -26,7 +26,7 @@ for domain in domains:
             all_cfs.append(line.strip())
 
     for cf in all_cfs:
-        tokens = tok(cf)["input_ids"]
+        tokens = [2] + tok(cf)["input_ids"][1:-1]
 
         for i in range(1, len(tokens)):
             key = " ## ".join([str(t) for t in tokens[:i]])

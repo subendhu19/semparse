@@ -19,7 +19,7 @@ def get_vnt_function(dict_path):
     vnt_dict = pickle.load(open(dict_path, "rb"))
 
     def get_valid_tokens(batch_id: int, prefix: torch.Tensor):
-        key = " ## ".join(list(prefix.numpy()))
+        key = " ## ".join([str(a) for a in list(prefix.cpu().numpy())])
         if key in vnt_dict:
             return vnt_dict[key]
         else:
