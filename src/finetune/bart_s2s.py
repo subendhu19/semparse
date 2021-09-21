@@ -3,13 +3,30 @@ from datetime import datetime
 import logging
 
 import pandas as pd
-from simpletransformers.seq2seq import Seq2SeqModel, Seq2SeqArgs
+from simpletransformers.seq2seq import Seq2SeqArgs
+from src.finetune.utils import ConstrainedSeq2SeqModel
+import pickle
+import torch
 
 import argparse
 
 logging.basicConfig(level=logging.INFO)
 transformers_logger = logging.getLogger("transformers")
 transformers_logger.setLevel(logging.ERROR)
+
+
+def get_vnt_function(dict_path):
+    vnt_dict = pickle.load(open(dict_path, "rb"))
+
+    def get_valid_tokens(batch_id: int, prefix: torch.Tensor):
+        key = " ## ".join(list(prefix.numpy()))
+        if key in vnt_dict:
+            return vnt_dict[key]
+        else:
+            return [2]
+
+    return get_valid_tokens
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BART seq2seq model training for semantic parsing")
@@ -18,6 +35,7 @@ if __name__ == "__main__":
                                                            "/jt_data/overnight/basketball/original/basketball")
     parser.add_argument('--gpu', action='store_true')
     parser.add_argument('--out_folder', type=str, default="/Users/subendhu/Documents/Amazon 2021")
+    parser.add_argument('--constrained_dict_path', type=str)
 
     args = parser.parse_args()
 
@@ -68,9 +86,13 @@ if __name__ == "__main__":
     model_args.top_p = 0.95
     model_args.train_batch_size = 8
     model_args.use_multiprocessing = False
+    constraining_function = None
+    if args.constrained_dict_path is not None:
+        constraining_function = get_vnt_function(args.constrained_dict_path)
     # model_args.wandb_project = "Semantic Parsing with BART"
 
-    model = Seq2SeqModel(
+    model = ConstrainedSeq2SeqModel(
+        constraining_function=constraining_function,
         encoder_decoder_type="bart",
         encoder_decoder_name="facebook/bart-large",
         args=model_args,
