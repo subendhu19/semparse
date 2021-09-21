@@ -43,7 +43,7 @@ if __name__ == "__main__":
     model = ConstrainedSeq2SeqModel(
         constraining_function=constraining_function,
         encoder_decoder_type="bart",
-        encoder_decoder_name="args.model_cp",
+        encoder_decoder_name=args.model_cp,
         use_cuda=args.gpu
     )
 
