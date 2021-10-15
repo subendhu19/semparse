@@ -62,7 +62,7 @@ if __name__ == "__main__":
         with torch.no_grad():
             outputs = model(**inputs)
 
-        train_embeddings.append(outputs.last_hidden_state)
+        train_embeddings.append(outputs.last_hidden_state[0][-1])
 
     print("Computing embeddings for test data...")
     for (utt, can) in tqdm(test_data):
@@ -70,7 +70,7 @@ if __name__ == "__main__":
         with torch.no_grad():
             outputs = model(**inputs)
 
-        test_embeddings.append(outputs.last_hidden_state)
+        test_embeddings.append(outputs.last_hidden_state[0][-1])
 
     train_embeddings = torch.stack(train_embeddings, dim=0)
     test_embeddings = torch.stack(test_embeddings, dim=0)
