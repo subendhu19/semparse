@@ -75,6 +75,9 @@ if __name__ == "__main__":
     train_embeddings = torch.stack(train_embeddings, dim=0)
     test_embeddings = torch.stack(test_embeddings, dim=0)
 
-    relevance_scores = torch.cosine_similarity(train_embeddings, test_embeddings, dim=1)
+    relevance_scores = [[torch.cosine_similarity(i.unsqueeze(0), j.unsqueeze(0)).item() for j in test_embeddings]
+                        for i in train_embeddings]
+
+    relevance_scores = torch.tensor(relevance_scores)
 
     print(relevance_scores.shape)
