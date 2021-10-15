@@ -1,7 +1,9 @@
 from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer, AutoModel
 import argparse
 import torch
-from tqdm import tqdm
+from tqdm import tqdm, trange
+import os
+
 
 if __name__ == "__main__":
     # gen = pipeline("text-generation", model="EleutherAI/gpt-neo-2.7B")
@@ -37,7 +39,7 @@ if __name__ == "__main__":
     with open(args.data_prefix + '.train.canonical.txt') as inf:
         train_can = [l.strip() for l in inf.readlines()]
 
-    train_data = zip(train_utt, train_can)
+    train_data = list(zip(train_utt, train_can))
 
     with open(args.data_prefix + '.test.utterances.txt') as inf:
         test_utt = [l.strip() for l in inf.readlines()]
@@ -45,7 +47,7 @@ if __name__ == "__main__":
     with open(args.data_prefix + '.test.canonical.txt') as inf:
         test_can = [l.strip() for l in inf.readlines()]
 
-    test_data = zip(test_utt, test_can)
+    test_data = list(zip(test_utt, test_can))
 
     # Relevance scoring
     tokenizer = AutoTokenizer.from_pretrained('EleutherAI/gpt-neo-1.3B')
@@ -81,3 +83,22 @@ if __name__ == "__main__":
     relevance_scores = torch.tensor(relevance_scores)
 
     print(relevance_scores.shape)
+
+    # Test prompt creation
+    k = 10
+    prompts = []
+    print("Creating test prompts...")
+    for i in trange(len(test_data)):
+        s = relevance_scores[i]
+        s_e = list(zip(s, train_data))
+        s_e.sort(key=lambda x: x[0])
+        top_k = s_e[-k:]
+        prompt = ''.join(["src: " + ex[1][0] + " tgt: " + ex[1][1] + "\n" for ex in top_k])
+        prompt += "src: " + test_data[i][0] + " tgt: "
+        prompts.append(prompt)
+
+    with open(os.path.join(args.out_folder, 'prompts.txt'), 'w') as outf:
+        for i in range(test_data):
+            outf.write("INPUT:\n{}\n".format(test_data[i][0]))
+            outf.write("PROMPT:\n{}\n\n".format(prompts[i]))
+
