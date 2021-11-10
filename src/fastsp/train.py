@@ -47,6 +47,8 @@ model.train()
 for epoch in range(epochs):
     shuffle(train_processed)
 
+    update = 0
+    total_updates = int(len(train_processed) / batch_size)
     for i in range(0, len(train_processed), batch_size):
         mini_batch = train_processed[i:i+batch_size]
 
@@ -69,9 +71,10 @@ for epoch in range(epochs):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        update += 1
 
-        if i % log_every == 0:
-            print("Epoch: {} \t Update: {} \t Loss: {}".format(epoch, i, loss.item()))
+        if update % log_every == 0:
+            print("Epoch: {}/{} \t Update: {}/{} \t Loss: {}".format(epoch, epochs, update, total_updates, loss.item()))
 
 print('Done')
 
