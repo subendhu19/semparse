@@ -98,7 +98,7 @@ if __name__ == "__main__":
         prompts.append(prompt)
 
     with open(os.path.join(args.out_folder, 'prompts.txt'), 'w') as outf:
-        for i in range(test_data):
+        for i in range(len(test_data)):
             outf.write("INPUT:\n{}\n".format(test_data[i][0]))
             outf.write("PROMPT:\n{}\n\n".format(prompts[i]))
 
