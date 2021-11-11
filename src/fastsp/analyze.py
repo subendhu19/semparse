@@ -70,15 +70,15 @@ if __name__ == "__main__":
 
     entity_names = entity_name_dict[eval_intent]
 
-    tot = len(val_data[held_out_intent]['utterances'])
+    tot = len(val_data[eval_intent]['utterances'])
     # tot = 10
 
     log_every = args.log_every
     start_time = datetime.now()
 
     for i in range(tot):
-        utt = val_data[held_out_intent]['utterances'][i]
-        ets = val_data[held_out_intent]['entities'][i]
+        utt = val_data[eval_intent]['utterances'][i]
+        ets = val_data[eval_intent]['entities'][i]
 
         spans = find_all_spans(utt.split(), span_threshold)
 
