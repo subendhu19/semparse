@@ -2,6 +2,7 @@ import torch
 import os
 import pickle
 import argparse
+from datetime import datetime
 
 from transformers import BertTokenizer, BertForSequenceClassification
 
@@ -41,6 +42,7 @@ if __name__ == "__main__":
     parser.add_argument('--held_out_intent', type=str, required=True)
 
     parser.add_argument('--span_threshold', type=int, default=6)
+    parser.add_argument('--log_every', type=int, default=100)
 
     args = parser.parse_args()
 
@@ -71,6 +73,9 @@ if __name__ == "__main__":
     tot = len(val_data[held_out_intent]['utterances'])
     # tot = 10
 
+    log_every = args.log_every
+    start_time = datetime.now()
+
     for i in range(tot):
         utt = val_data[held_out_intent]['utterances'][i]
         ets = val_data[held_out_intent]['entities'][i]
@@ -97,6 +102,9 @@ if __name__ == "__main__":
 
         analysis_file.write('\n\n############################################\n\n')
 
-        print('Processed {} item(s)'.format(i))
+        if i % log_every == 0:
+            print('Processed {}/{} item(s) \t Time elapsed: {}'.format(i, tot, datetime.now() - start_time))
 
     analysis_file.close()
+
+    print('Done. Total time taken: {}'.format(datetime.now() - start_time))

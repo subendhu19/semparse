@@ -2,6 +2,7 @@ import torch
 import os
 import pickle
 import argparse
+from datetime import datetime
 
 from transformers import BertTokenizer, BertForSequenceClassification
 
@@ -58,6 +59,9 @@ if __name__ == "__main__":
 
     print('Begin Training...')
     model.train()
+
+    start_time = datetime.now()
+
     for epoch in range(epochs):
         shuffle(train_processed)
 
@@ -88,10 +92,10 @@ if __name__ == "__main__":
             update += 1
 
             if update % log_every == 0:
-                print("Epoch: {}/{} \t Update: {}/{} \t Loss: {}".format(epoch+1, epochs, update, total_updates,
-                                                                         loss.item()))
+                print("Epoch: {}/{} \t Update: {}/{} \t Loss: {} \t Time elapsed: {}".
+                      format(epoch+1, epochs, update, total_updates, loss.item(), datetime.now() - start_time))
 
-    print('Done')
+    print('Done. Total time taken: {}'.format(datetime.now() - start_time))
 
     state_dict = {'model_state_dict': model.state_dict()}
     save_path = os.path.join(save_folder, 'bert_wo_' + held_out_intent + '.pt')
