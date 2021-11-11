@@ -13,7 +13,7 @@ def find_all_spans(words, threshold):
     return all_spans
 
 
-tokenizer = BertTokenizer.from_pretrained('bert-base-constrained')
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
 # Data
 data_folder = '/home/srongali/data/snips'
@@ -31,6 +31,8 @@ model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_l
 model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}.pt'.
                                               format(held_out_intent)))['model_state_dict'])
 model.eval()
+
+print('Saved model loaded.')
 
 entity_names = ["music item", "entity name", "playlist", "artist", "playlist owner"]
 
@@ -61,5 +63,7 @@ for i in range(tot):
 
         analysis_file.write('\n\t'.join([a[0] + ' ## ' + str(a[1]) for a in spans_w_scores[:5]]))
         analysis_file.write('\n\n############################################\n\n')
+
+    print('Processed {} item(s)'.format(i))
 
 analysis_file.close()
