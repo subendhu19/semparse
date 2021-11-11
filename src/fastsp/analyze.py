@@ -15,7 +15,18 @@ def find_all_spans(words, threshold):
 
 
 entity_name_dict = {
-    "AddtoPlaylist": ["music item", "entity name", "playlist", "artist", "playlist owner"]
+    "PlayMusic": ["genre", "year", "sort", "service", "music item", "playlist", "album", "artist", "track"],
+    "RateBook": ["object name", "rating unit", "best rating", "rating value", "object type", "object select",
+                 "object part of series type"],
+    "SearchCreativeWork": ["object name", "object type"],
+    "GetWeather": ["state", "spatial relation", "condition description", "country", "timeRange", "city",
+                   "condition temperature", "current location", "geographic poi"],
+    "BookRestaurant": ["state", "spatial relation", "party size number", "sort", "country", "timeRange",
+                       "restaurant type", "served dish", "restaurant name", "city", "cuisine", "poi", "facility",
+                       "party size description"],
+    "SearchScreeningEvent": ["spatial relation", "object type", "timeRange", "movie name", "movie type",
+                             "location name", "object location type"],
+    "AddToPlaylist": ["music item", "entity name", "playlist", "artist", "playlist owner"]
 }
 
 

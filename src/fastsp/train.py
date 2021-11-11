@@ -88,7 +88,8 @@ if __name__ == "__main__":
             update += 1
 
             if update % log_every == 0:
-                print("Epoch: {}/{} \t Update: {}/{} \t Loss: {}".format(epoch, epochs, update, total_updates, loss.item()))
+                print("Epoch: {}/{} \t Update: {}/{} \t Loss: {}".format(epoch+1, epochs, update, total_updates,
+                                                                         loss.item()))
 
     print('Done')
 
