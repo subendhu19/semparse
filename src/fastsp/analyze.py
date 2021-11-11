@@ -1,6 +1,7 @@
 import torch
 import os
 import pickle
+import argparse
 
 from transformers import BertTokenizer, BertForSequenceClassification
 
@@ -13,57 +14,78 @@ def find_all_spans(words, threshold):
     return all_spans
 
 
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+entity_name_dict = {
+    "AddtoPlaylist": ["music item", "entity name", "playlist", "artist", "playlist owner"]
+}
 
-# Data
-data_folder = '/home/srongali/data/snips'
-save_folder = '/mnt/nfs/scratch1/srongali/semparse/snips'
 
-val_data = pickle.load(open(os.path.join(data_folder, 'val_data.p'), 'rb'))
+if __name__ == "__main__":
 
-held_out_intent = 'AddToPlaylist'
-span_threshold = 6
-device = "cuda:0"
+    parser = argparse.ArgumentParser(description="Training models for fast semantic parsing")
 
-analysis_file = open(os.path.join(save_folder, '{}_analysis.txt'.format(held_out_intent)), 'w')
+    parser.add_argument('--data_folder', type=str, default='/home/srongali/data/snips')
+    parser.add_argument('--save_folder', type=str, default='/mnt/nfs/scratch1/srongali/semparse/snips')
 
-model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
-model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}.pt'.
-                                              format(held_out_intent)))['model_state_dict'])
-model.eval()
+    parser.add_argument('--eval_intent', type=str, required=True)
+    parser.add_argument('--held_out_intent', type=str, required=True)
 
-print('Saved model loaded.')
+    parser.add_argument('--span_threshold', type=int, default=6)
 
-entity_names = ["music item", "entity name", "playlist", "artist", "playlist owner"]
+    args = parser.parse_args()
 
-# tot = len(val_data[held_out_intent]['utterances'])
-tot = 10
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-for i in range(tot):
-    utt = val_data[held_out_intent]['utterances'][i]
-    ets = val_data[held_out_intent]['entities'][i]
+    # Data
+    data_folder = args.data_folder
+    save_folder = args.save_folder
 
-    spans = find_all_spans(utt.split(), span_threshold)
+    val_data = pickle.load(open(os.path.join(data_folder, 'val_data.p'), 'rb'))
 
-    analysis_file.write('UTTERANCE: {}\n\n'.format(utt))
+    held_out_intent = args.held_out_intent
+    eval_intent = args.held_out_intent
+    span_threshold = args.span_threshold
+    device = "cuda:0"
 
-    analysis_file.write('GOLD SPANS: \n\t{}\n\n'.format('\n\t'.join([a[0] + ' ## ' + a[1] for a in ets])))
+    analysis_file = open(os.path.join(save_folder, 'ho_{}_ev_{}_analysis.txt'.format(held_out_intent, eval_intent)), 'w')
 
-    for ent in entity_names:
-        analysis_file.write('ENTITY NAME: {}\n\t'.format(ent))
+    model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
+    model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}.pt'.
+                                                  format(held_out_intent)))['model_state_dict'])
+    model.eval()
 
-        inputs = ['[CLS] ' + ent + ' [SEP] ' + s for s in spans]
+    print('Saved model loaded.')
 
-        with torch.no_grad():
-            input_tensor = tokenizer(inputs, return_tensors="pt", padding=True).to(device=device)
-            scores = torch.sigmoid(model(**input_tensor).logits)
+    entity_names = entity_name_dict[eval_intent]
 
-        spans_w_scores = list(zip(spans, list(scores.squeeze())))
-        spans_w_scores.sort(key=lambda x: x[1], reverse=True)
+    tot = len(val_data[held_out_intent]['utterances'])
+    # tot = 10
 
-        analysis_file.write('\n\t'.join([a[0] + ' ## ' + str(a[1]) for a in spans_w_scores[:5]]))
+    for i in range(tot):
+        utt = val_data[held_out_intent]['utterances'][i]
+        ets = val_data[held_out_intent]['entities'][i]
+
+        spans = find_all_spans(utt.split(), span_threshold)
+
+        analysis_file.write('UTTERANCE: {}\n\n'.format(utt))
+
+        analysis_file.write('GOLD SPANS: \n\t{}\n\n'.format('\n\t'.join([a[0] + ' ## ' + a[1] for a in ets])))
+
+        for ent in entity_names:
+            analysis_file.write('ENTITY NAME: {}\n\t'.format(ent))
+
+            inputs = ['[CLS] ' + ent + ' [SEP] ' + s for s in spans]
+
+            with torch.no_grad():
+                input_tensor = tokenizer(inputs, return_tensors="pt", padding=True).to(device=device)
+                scores = torch.sigmoid(model(**input_tensor).logits)
+
+            spans_w_scores = list(zip(spans, list(scores.squeeze())))
+            spans_w_scores.sort(key=lambda x: x[1], reverse=True)
+
+            analysis_file.write('\n\t'.join([a[0] + ' ## ' + str(a[1]) for a in spans_w_scores[:5]]))
+
         analysis_file.write('\n\n############################################\n\n')
 
-    print('Processed {} item(s)'.format(i))
+        print('Processed {} item(s)'.format(i))
 
-analysis_file.close()
+    analysis_file.close()
