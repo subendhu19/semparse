@@ -47,7 +47,7 @@ for i in range(tot):
 
     analysis_file.write('UTTERANCE: {}\n\n'.format(utt))
 
-    analysis_file.write('GOLD SPANS: \n\t{}\n\n'.format('\n\t'.join([a['text'] + ' ## ' + a['entity'] for a in ets])))
+    analysis_file.write('GOLD SPANS: \n\t{}\n\n'.format('\n\t'.join([a[0] + ' ## ' + a[1] for a in ets])))
 
     for ent in entity_names:
         analysis_file.write('ENTITY NAME: {}\n\t'.format(ent))

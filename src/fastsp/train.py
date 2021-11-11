@@ -32,7 +32,7 @@ for intent in train_intents:
         train_processed.append(['[CLS] ' + ex[0] + ' [SEP] ' + ex[1], '[CLS] ' + ex[0] + ' [SEP] ' + ex[2]])
 
 
-epochs = 10
+epochs = 2
 batch_size = 64
 log_every = 10
 device = "cuda:0"
