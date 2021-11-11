@@ -93,7 +93,7 @@ if __name__ == "__main__":
             spans_w_scores = list(zip(spans, list(scores.squeeze())))
             spans_w_scores.sort(key=lambda x: x[1], reverse=True)
 
-            analysis_file.write('\n\t'.join([a[0] + ' ## ' + str(a[1]) for a in spans_w_scores[:5]]))
+            analysis_file.write('\n\t'.join([a[0] + ' ## ' + str(a[1]) for a in spans_w_scores[:5]]) + '\n\n')
 
         analysis_file.write('\n\n############################################\n\n')
 
