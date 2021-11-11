@@ -55,7 +55,7 @@ if __name__ == "__main__":
     val_data = pickle.load(open(os.path.join(data_folder, 'val_data.p'), 'rb'))
 
     held_out_intent = args.held_out_intent
-    eval_intent = args.held_out_intent
+    eval_intent = args.eval_intent
     span_threshold = args.span_threshold
     device = "cuda:0"
 
