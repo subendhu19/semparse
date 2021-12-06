@@ -62,7 +62,7 @@ if __name__ == "__main__":
     device = "cuda:0"
 
     analysis_file = open(os.path.join(save_folder, 'ho_{}_ev_{}_analysis.txt'.format(held_out_intent, eval_intent)),
-                             'w')
+                         'w')
 
     model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
     model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}.pt'.
@@ -97,7 +97,8 @@ if __name__ == "__main__":
             inputs = ['[CLS] ' + ent + ' [SEP] ' + s for s in spans]
 
             with torch.no_grad():
-                input_tensor = tokenizer(inputs, return_tensors="pt", padding=True).to(device=device)
+                input_tensor = tokenizer(inputs, return_tensors="pt", padding=True,
+                                         add_special_tokens=False).to(device=device)
                 scores = torch.sigmoid(model(**input_tensor).logits)
 
             spans_w_scores = list(zip(spans, list(scores.squeeze())))
@@ -123,7 +124,7 @@ if __name__ == "__main__":
 
     if args.save_metrics:
         pickle.dump(metrics_counts, open(os.path.join(save_folder, 'ho_{}_ev_{}_metrics.p'.format(held_out_intent,
-                                                                                                    eval_intent)),
+                                                                                                  eval_intent)),
                                          'wb'))
 
     print('Done. Total time taken: {}'.format(datetime.now() - start_time))
