@@ -44,6 +44,8 @@ if __name__ == "__main__":
     parser.add_argument('--span_threshold', type=int, default=6)
     parser.add_argument('--log_every', type=int, default=100)
 
+    parser.add_argument('--save_metrics', action='store_true')
+
     args = parser.parse_args()
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -59,7 +61,8 @@ if __name__ == "__main__":
     span_threshold = args.span_threshold
     device = "cuda:0"
 
-    analysis_file = open(os.path.join(save_folder, 'ho_{}_ev_{}_analysis.txt'.format(held_out_intent, eval_intent)), 'w')
+    analysis_file = open(os.path.join(save_folder, 'ho_{}_ev_{}_analysis.txt'.format(held_out_intent, eval_intent)),
+                             'w')
 
     model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
     model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}.pt'.
@@ -69,6 +72,9 @@ if __name__ == "__main__":
     print('Saved model loaded.')
 
     entity_names = entity_name_dict[eval_intent]
+
+    metrics_counts = {k: [] for k in entity_names}
+    metrics_counts['all'] = []
 
     tot = len(val_data[eval_intent]['utterances'])
     # tot = 10
@@ -83,7 +89,6 @@ if __name__ == "__main__":
         spans = find_all_spans(utt.split(), span_threshold)
 
         analysis_file.write('UTTERANCE: {}\n\n'.format(utt))
-
         analysis_file.write('GOLD SPANS: \n\t{}\n\n'.format('\n\t'.join([a[0] + ' ## ' + a[1] for a in ets])))
 
         for ent in entity_names:
@@ -98,6 +103,15 @@ if __name__ == "__main__":
             spans_w_scores = list(zip(spans, list(scores.squeeze())))
             spans_w_scores.sort(key=lambda x: x[1], reverse=True)
 
+            for a in ets:
+                if a[1].replace('_', ' ') == ent:
+                    index = -1
+                    sspans = [b[0] for b in spans_w_scores]
+                    if a[0] in sspans:
+                        index = sspans.index(a[0])
+                    metrics_counts[ent].append(index)
+                    metrics_counts['all'].append(index)
+
             analysis_file.write('\n\t'.join([a[0] + ' ## ' + str(a[1]) for a in spans_w_scores[:5]]) + '\n\n')
 
         analysis_file.write('\n\n############################################\n\n')
@@ -106,5 +120,10 @@ if __name__ == "__main__":
             print('Processed {}/{} item(s) \t Time elapsed: {}'.format(i, tot, datetime.now() - start_time))
 
     analysis_file.close()
+
+    if args.save_metrics:
+        pickle.dump(metrics_counts, open(os.path.join(save_folder, 'ho_{}_ev_{}_metrics.txt'.format(held_out_intent,
+                                                                                                    eval_intent)),
+                                         'wb'))
 
     print('Done. Total time taken: {}'.format(datetime.now() - start_time))
