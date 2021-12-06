@@ -122,7 +122,7 @@ if __name__ == "__main__":
     analysis_file.close()
 
     if args.save_metrics:
-        pickle.dump(metrics_counts, open(os.path.join(save_folder, 'ho_{}_ev_{}_metrics.txt'.format(held_out_intent,
+        pickle.dump(metrics_counts, open(os.path.join(save_folder, 'ho_{}_ev_{}_metrics.p'.format(held_out_intent,
                                                                                                     eval_intent)),
                                          'wb'))
 
