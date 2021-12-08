@@ -46,6 +46,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--save_metrics', action='store_true')
 
+    parser.add_argument('--model_style', type=str, choices=['base', 'context', 'implicit'], default='base')
+
     args = parser.parse_args()
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -61,12 +63,13 @@ if __name__ == "__main__":
     span_threshold = args.span_threshold
     device = "cuda:0"
 
-    analysis_file = open(os.path.join(save_folder, 'ho_{}_ev_{}_analysis.txt'.format(held_out_intent, eval_intent)),
+    analysis_file = open(os.path.join(save_folder, 'ho_{}_ev_{}_{}_analysis.txt'.format(held_out_intent, eval_intent,
+                                                                                        args.model_style)),
                          'w')
 
     model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
-    model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}.pt'.
-                                                  format(held_out_intent)))['model_state_dict'])
+    model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}_{}.pt'.
+                                                  format(held_out_intent, args.model_style)))['model_state_dict'])
     model.eval()
 
     print('Saved model loaded.')
@@ -123,8 +126,9 @@ if __name__ == "__main__":
     analysis_file.close()
 
     if args.save_metrics:
-        pickle.dump(metrics_counts, open(os.path.join(save_folder, 'ho_{}_ev_{}_metrics.p'.format(held_out_intent,
-                                                                                                  eval_intent)),
+        pickle.dump(metrics_counts, open(os.path.join(save_folder, 'ho_{}_ev_{}_{}_metrics.p'.format(held_out_intent,
+                                                                                                     eval_intent,
+                                                                                                     args.model_style)),
                                          'wb'))
 
     print('Done. Total time taken: {}'.format(datetime.now() - start_time))
