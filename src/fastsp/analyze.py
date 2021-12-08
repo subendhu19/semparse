@@ -97,7 +97,10 @@ if __name__ == "__main__":
         for ent in entity_names:
             analysis_file.write('ENTITY NAME: {}\n\t'.format(ent))
 
-            inputs = ['[CLS] ' + ent + ' [SEP] ' + s for s in spans]
+            if args.model_style == 'context':
+                inputs = ['[CLS] ' + ent + ' [SEP] ' + s + ' [SEP] ' + utt for s in spans]
+            elif args.model_style == 'base':
+                inputs = ['[CLS] ' + ent + ' [SEP] ' + s for s in spans]
 
             with torch.no_grad():
                 input_tensor = tokenizer(inputs, return_tensors="pt", padding=True,
