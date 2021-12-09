@@ -5,6 +5,7 @@ import argparse
 from datetime import datetime
 
 from transformers import BertTokenizer, BertForSequenceClassification
+from fastsp.utils import slot_descriptions
 
 
 def find_all_spans(words, threshold):
@@ -47,6 +48,7 @@ if __name__ == "__main__":
     parser.add_argument('--save_metrics', action='store_true')
 
     parser.add_argument('--model_style', type=str, choices=['base', 'context', 'implicit'], default='base')
+    parser.add_argument('--use_descriptions', action='store_true')
 
     args = parser.parse_args()
 
@@ -63,13 +65,23 @@ if __name__ == "__main__":
     span_threshold = args.span_threshold
     device = "cuda:0"
 
-    analysis_file = open(os.path.join(save_folder, 'ho_{}_ev_{}_{}_analysis.txt'.format(held_out_intent, eval_intent,
-                                                                                        args.model_style)),
-                         'w')
+    if args.use_descriptions:
+        analysis_file = open(
+            os.path.join(save_folder, 'ho_{}_ev_{}_{}_desc_analysis.txt'.format(held_out_intent, eval_intent,
+                                                                                args.model_style)), 'w')
+    else:
+        analysis_file = open(
+            os.path.join(save_folder, 'ho_{}_ev_{}_{}_analysis.txt'.format(held_out_intent, eval_intent,
+                                                                           args.model_style)), 'w')
 
     model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
-    model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}_{}.pt'.
-                                                  format(held_out_intent, args.model_style)))['model_state_dict'])
+    if args.use_descriptions:
+        model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}_{}_desc.pt'.
+                                                      format(held_out_intent, args.model_style)))['model_state_dict'])
+    else:
+        model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}_{}.pt'.
+                                                      format(held_out_intent, args.model_style)))['model_state_dict'])
+
     model.eval()
 
     print('Saved model loaded.')
@@ -97,10 +109,15 @@ if __name__ == "__main__":
         for ent in entity_names:
             analysis_file.write('ENTITY NAME: {}\n\t'.format(ent))
 
+            if args.use_descriptions:
+                ent_span = ent + ' : ' + slot_descriptions[eval_intent][ent]
+            else:
+                ent_span = ent
+
             if args.model_style == 'context':
-                inputs = ['[CLS] ' + ent + ' [SEP] ' + s + ' [SEP] ' + utt for s in spans]
+                inputs = ['[CLS] ' + ent_span + ' [SEP] ' + s + ' [SEP] ' + utt for s in spans]
             elif args.model_style == 'base':
-                inputs = ['[CLS] ' + ent + ' [SEP] ' + s for s in spans]
+                inputs = ['[CLS] ' + ent_span + ' [SEP] ' + s for s in spans]
 
             with torch.no_grad():
                 input_tensor = tokenizer(inputs, return_tensors="pt", padding=True,
@@ -129,9 +146,13 @@ if __name__ == "__main__":
     analysis_file.close()
 
     if args.save_metrics:
-        pickle.dump(metrics_counts, open(os.path.join(save_folder, 'ho_{}_ev_{}_{}_metrics.p'.format(held_out_intent,
-                                                                                                     eval_intent,
-                                                                                                     args.model_style)),
-                                         'wb'))
+        if args.use_descriptions:
+            pickle.dump(metrics_counts, open(
+                os.path.join(save_folder, 'ho_{}_ev_{}_{}_desc_metrics.p'.format(held_out_intent, eval_intent,
+                                                                                 args.model_style)), 'wb'))
+        else:
+            pickle.dump(metrics_counts, open(
+                os.path.join(save_folder, 'ho_{}_ev_{}_{}_metrics.p'.format(held_out_intent, eval_intent,
+                                                                            args.model_style)), 'wb'))
 
     print('Done. Total time taken: {}'.format(datetime.now() - start_time))

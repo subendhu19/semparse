@@ -8,6 +8,7 @@ import sys
 from transformers import BertTokenizer, BertForSequenceClassification, BertForTokenClassification
 
 from random import shuffle
+from fastsp.utils import slot_descriptions
 
 
 if __name__ == "__main__":
@@ -24,6 +25,7 @@ if __name__ == "__main__":
     parser.add_argument('--log_every', type=int, default=10)
 
     parser.add_argument('--model_style', type=str, choices=['base', 'context', 'implicit'], default='base')
+    parser.add_argument('--use_descriptions', action='store_true')
 
     args = parser.parse_args()
 
@@ -48,14 +50,20 @@ if __name__ == "__main__":
 
     for intent in train_intents:
         for ex in margin_train_data[intent]:
-            if args.model_style == 'base':
-                train_processed.append(['[CLS] ' + ex[0] + ' [SEP] ' + ex[1][0],
-                                        '[CLS] ' + ex[0] + ' [SEP] ' + ex[2][0]])
-            elif args.model_style == 'context':
-                train_processed.append(['[CLS] ' + ex[0] + ' [SEP] ' + ex[1][0] + ' [SEP] ' + ex[3],
-                                        '[CLS] ' + ex[0] + ' [SEP] ' + ex[2][0] + ' [SEP] ' + ex[3]])
+
+            if args.use_descriptions:
+                ent_span = ex[0] + ' : ' + slot_descriptions[intent][ex]
             else:
-                train_processed.append(['[CLS] ' + ex[0] + ' [SEP] ' + ex[3],
+                ent_span = ex[0]
+
+            if args.model_style == 'base':
+                train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[1][0],
+                                        '[CLS] ' + ent_span + ' [SEP] ' + ex[2][0]])
+            elif args.model_style == 'context':
+                train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[1][0] + ' [SEP] ' + ex[3],
+                                        '[CLS] ' + ent_span + ' [SEP] ' + ex[2][0] + ' [SEP] ' + ex[3]])
+            else:
+                train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[3],
                                         ex[1][1], ex[2][1]])
 
     epochs = args.epochs
@@ -116,7 +124,10 @@ if __name__ == "__main__":
     print('Done. Total time taken: {}'.format(datetime.now() - start_time))
 
     state_dict = {'model_state_dict': model.state_dict()}
-    save_path = os.path.join(save_folder, 'bert_wo_{}_{}.pt'.format(held_out_intent, args.model_style))
+    if args.save_descriptions:
+        save_path = os.path.join(save_folder, 'bert_wo_{}_{}_desc.pt'.format(held_out_intent, args.model_style))
+    else:
+        save_path = os.path.join(save_folder, 'bert_wo_{}_{}.pt'.format(held_out_intent, args.model_style))
     torch.save(state_dict, save_path)
     print('Checkpoint saved to {}'.format(save_path))
 
