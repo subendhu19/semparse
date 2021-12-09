@@ -5,7 +5,7 @@ import argparse
 from datetime import datetime
 
 from transformers import BertTokenizer, BertForSequenceClassification
-from fastsp.utils import slot_descriptions
+from src.fastsp.utils import slot_descriptions
 
 
 def find_all_spans(words, threshold):

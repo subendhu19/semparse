@@ -8,7 +8,7 @@ import sys
 from transformers import BertTokenizer, BertForSequenceClassification, BertForTokenClassification
 
 from random import shuffle
-from fastsp.utils import slot_descriptions
+from src.fastsp.utils import slot_descriptions
 
 
 if __name__ == "__main__":
@@ -52,7 +52,7 @@ if __name__ == "__main__":
         for ex in margin_train_data[intent]:
 
             if args.use_descriptions:
-                ent_span = ex[0] + ' : ' + slot_descriptions[intent][ex]
+                ent_span = ex[0] + ' : ' + slot_descriptions[intent][ex[0]]
             else:
                 ent_span = ex[0]
 
