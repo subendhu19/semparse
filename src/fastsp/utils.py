@@ -17,7 +17,7 @@ slot_descriptions = {
                     'party size number': 'count of people in the dining party',
                     'poi': 'geographic landmark, typically a building or '
                            'location',
-                    'restaurant': 'name The name of the restaurant',
+                    'restaurant name': 'The name of the restaurant',
                     'restaurant type': 'style or type of the restaurant',
                     'served dish': 'name of the dish or food requested',
                     'sort': 'metric that defines the order of results',
