@@ -28,8 +28,8 @@ slot_descriptions = {
                     'timeRange': 'range defining the start and end times of '
                                  'an interval'},
  'GetWeather': {'city': 'location city',
-                'condition': 'description The weather condition to obtain '
-                             'description for',
+                'condition description': 'weather condition to obtain '
+                                         'description for',
                 'condition temperature': 'degree or intensity of heat in the '
                                          'atmosphere',
                 'country': 'location country',
