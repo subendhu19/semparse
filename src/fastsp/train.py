@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     margin = 0.7
 
-    print('Begin Training...')
+    print('Begin Training...', flush=True)
     model.train()
 
     start_time = datetime.now()
@@ -133,9 +133,10 @@ if __name__ == "__main__":
 
             if update % log_every == 0:
                 print("Epoch: {}/{} \t Update: {}/{} \t Loss: {} \t Time elapsed: {}".
-                      format(epoch+1, epochs, update, total_updates, loss.item(), datetime.now() - start_time))
+                      format(epoch+1, epochs, update, total_updates, loss.item(), datetime.now() - start_time),
+                      flush=True)
 
-    print('Done. Total time taken: {}'.format(datetime.now() - start_time))
+    print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
 
     state_dict = {'model_state_dict': model.state_dict()}
     if args.use_descriptions:
@@ -143,7 +144,7 @@ if __name__ == "__main__":
     else:
         save_path = os.path.join(save_folder, 'bert_wo_{}_{}.pt'.format(held_out_intent, args.model_style))
     torch.save(state_dict, save_path)
-    print('Checkpoint saved to {}'.format(save_path))
+    print('Checkpoint saved to {}'.format(save_path), flush=True)
 
 
 

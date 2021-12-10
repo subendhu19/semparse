@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     model.eval()
 
-    print('Saved model loaded.')
+    print('Saved model loaded.', flush=True)
 
     entity_names = entity_name_dict[eval_intent]
 
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         analysis_file.write('\n\n############################################\n\n')
 
         if i % log_every == 0:
-            print('Processed {}/{} item(s) \t Time elapsed: {}'.format(i, tot, datetime.now() - start_time))
+            print('Processed {}/{} item(s) \t Time elapsed: {}'.format(i, tot, datetime.now() - start_time), flush=True)
 
     analysis_file.close()
 
@@ -155,4 +155,4 @@ if __name__ == "__main__":
                 os.path.join(save_folder, 'ho_{}_ev_{}_{}_metrics.p'.format(held_out_intent, eval_intent,
                                                                             args.model_style)), 'wb'))
 
-    print('Done. Total time taken: {}'.format(datetime.now() - start_time))
+    print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
