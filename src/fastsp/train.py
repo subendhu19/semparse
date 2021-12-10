@@ -124,7 +124,7 @@ if __name__ == "__main__":
     print('Done. Total time taken: {}'.format(datetime.now() - start_time))
 
     state_dict = {'model_state_dict': model.state_dict()}
-    if args.save_descriptions:
+    if args.use_descriptions:
         save_path = os.path.join(save_folder, 'bert_wo_{}_{}_desc.pt'.format(held_out_intent, args.model_style))
     else:
         save_path = os.path.join(save_folder, 'bert_wo_{}_{}.pt'.format(held_out_intent, args.model_style))
