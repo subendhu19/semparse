@@ -7,7 +7,7 @@ import sys
 
 from transformers import BertTokenizer, BertForSequenceClassification, BertForTokenClassification
 
-from random import shuffle
+from random import shuffle, sample
 from src.fastsp.utils import slot_descriptions
 
 
@@ -40,31 +40,12 @@ if __name__ == "__main__":
     data_folder = args.data_folder
     save_folder = args.save_folder
 
-    margin_train_data = pickle.load(open(os.path.join(data_folder, 'margin_train_data.p'), 'rb'))
-    intents = list(margin_train_data.keys())
+    train_entity_data = pickle.load(open(os.path.join(data_folder, 'train_entity_data.p'), 'rb'))
+    # margin_train_data = pickle.load(open(os.path.join(data_folder, 'margin_train_data.p'), 'rb'))
+    intents = list(train_entity_data.keys())
 
     held_out_intent = args.held_out_intent
     train_intents = [i for i in intents if i != held_out_intent]
-
-    train_processed = []
-
-    for intent in train_intents:
-        for ex in margin_train_data[intent]:
-
-            if args.use_descriptions:
-                ent_span = ex[0] + ' : ' + slot_descriptions[intent][ex[0]]
-            else:
-                ent_span = ex[0]
-
-            if args.model_style == 'base':
-                train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[1][0],
-                                        '[CLS] ' + ent_span + ' [SEP] ' + ex[2][0]])
-            elif args.model_style == 'context':
-                train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[1][0] + ' [SEP] ' + ex[3],
-                                        '[CLS] ' + ent_span + ' [SEP] ' + ex[2][0] + ' [SEP] ' + ex[3]])
-            else:
-                train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[3],
-                                        ex[1][1], ex[2][1]])
 
     epochs = args.epochs
     batch_size = args.batch_size
@@ -87,6 +68,39 @@ if __name__ == "__main__":
     start_time = datetime.now()
 
     for epoch in range(epochs):
+
+        margin_train_data = {i: [] for i in intents}
+        for intent in intents:
+            for et in train_entity_data[intent]:
+                utt = et["utterance"]
+                name = et["name"].replace('_', " ")
+                pos = et["positive"]
+                min_ns = min(len(et["negative_non_overlap_spans"]), 5)
+                min_os = min(len(et["negative_overlap_spans"]), 5)
+                negs = (et["negative_other_entites"] + sample(et["negative_overlap_spans"], min_os)
+                        + sample(et["negative_non_overlap_spans"], min_ns))
+                for neg in negs:
+                    margin_train_data[intent].append((name, pos, neg, utt))
+            shuffle(margin_train_data[intent])
+
+        train_processed = []
+        for intent in train_intents:
+            for ex in margin_train_data[intent]:
+
+                if args.use_descriptions:
+                    ent_span = ex[0] + ' : ' + slot_descriptions[intent][ex[0]]
+                else:
+                    ent_span = ex[0]
+
+                if args.model_style == 'base':
+                    train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[1][0],
+                                            '[CLS] ' + ent_span + ' [SEP] ' + ex[2][0]])
+                elif args.model_style == 'context':
+                    train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[1][0] + ' [SEP] ' + ex[3],
+                                            '[CLS] ' + ent_span + ' [SEP] ' + ex[2][0] + ' [SEP] ' + ex[3]])
+                else:
+                    train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[3],
+                                            ex[1][1], ex[2][1]])
         shuffle(train_processed)
 
         update = 0
