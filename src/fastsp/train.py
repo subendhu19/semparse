@@ -3,12 +3,40 @@ import os
 import pickle
 import argparse
 from datetime import datetime
-import sys
 
-from transformers import BertTokenizer, BertForSequenceClassification, BertForTokenClassification
+from transformers import BertTokenizerFast, BertForSequenceClassification, BertModel
 
+import random
 from random import shuffle, sample
 from src.fastsp.utils import slot_descriptions
+
+
+random.seed(1100)
+
+
+def get_indices(span, ips, sid):
+    word_ids = ips.word_ids()
+    n_span = [word_ids.index(span[0]) + sid, word_ids.index(span[1]-1) + sid]
+    return n_span
+
+
+class ImplicitScorer(torch.nn.Module):
+    def __init__(self):
+        super(ImplicitScorer, self).__init__()
+        self.bert = BertModel.from_pretrained('bert-base-uncased')
+        self.dropout = torch.nn.Dropout(p=0.1, inplace=False)
+        self.scorer = torch.nn.Linear(2 * self.bert.config.hidden_size, 1)
+
+    def forward(self, inputs, spans):
+        outs = self.bert(**inputs)
+        token_level_outputs = outs['last_hidden_state']
+
+        span_vecs = token_level_outputs[torch.arange(token_level_outputs.shape[0]).unsqueeze(-1), spans]
+        score_vecs = self.dropout(torch.cat([span_vecs[:, 0, :], span_vecs[:, 1, :]], dim=1))
+
+        scores = self.scorer(score_vecs)
+
+        return scores
 
 
 if __name__ == "__main__":
@@ -29,7 +57,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
 
     # Model params
     MAX_SEQ_LEN = 128
@@ -55,8 +83,7 @@ if __name__ == "__main__":
     if args.model_style in ['base', 'context']:
         model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
     else:
-        sys.exit("Implicit model not implemented yet")
-        # model = BertForTokenClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
+        model = ImplicitScorer().to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=2e-5)
 
@@ -99,8 +126,11 @@ if __name__ == "__main__":
                     train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[1][0] + ' [SEP] ' + ex[3],
                                             '[CLS] ' + ent_span + ' [SEP] ' + ex[2][0] + ' [SEP] ' + ex[3]])
                 else:
+                    start_id = len(tokenizer.tokenize(ent_span)) + 2
+                    inp = tokenizer(ex[3], return_tensors="pt", add_special_tokens=False)
                     train_processed.append(['[CLS] ' + ent_span + ' [SEP] ' + ex[3],
-                                            ex[1][1], ex[2][1]])
+                                            get_indices(ex[1][1], inp, start_id),
+                                            get_indices(ex[2][1], inp, start_id)])
         shuffle(train_processed)
 
         update = 0
@@ -108,19 +138,30 @@ if __name__ == "__main__":
         for i in range(0, len(train_processed), batch_size):
             mini_batch = train_processed[i:i+batch_size]
 
-            pos_ex = [a[0] for a in mini_batch]
-            neg_ex = [a[1] for a in mini_batch]
+            if args.model_style == 'implicit':
+                sents = [a[0] for a in mini_batch]
+                sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
+                                         add_special_tokens=False).to(device=device)
+                pos_spans = torch.tensor([a[1] for a in mini_batch]).to(device=device)
+                neg_spans = torch.tensor([a[2] for a in mini_batch]).to(device=device)
 
-            pos_tensors = tokenizer(pos_ex, return_tensors="pt", padding=True,
-                                    add_special_tokens=False).to(device=device)
-            neg_tensors = tokenizer(neg_ex, return_tensors="pt", padding=True,
-                                    add_special_tokens=False).to(device=device)
+                pos_scores = torch.sigmoid(model(sent_tensors, pos_spans))
+                neg_scores = torch.sigmoid(model(sent_tensors, neg_spans))
 
-            pos_outputs = model(**pos_tensors)
-            neg_outputs = model(**neg_tensors)
+            else:
+                pos_ex = [a[0] for a in mini_batch]
+                neg_ex = [a[1] for a in mini_batch]
 
-            pos_scores = torch.sigmoid(pos_outputs.logits)
-            neg_scores = torch.sigmoid(neg_outputs.logits)
+                pos_tensors = tokenizer(pos_ex, return_tensors="pt", padding=True,
+                                        add_special_tokens=False).to(device=device)
+                neg_tensors = tokenizer(neg_ex, return_tensors="pt", padding=True,
+                                        add_special_tokens=False).to(device=device)
+
+                pos_outputs = model(**pos_tensors)
+                neg_outputs = model(**neg_tensors)
+
+                pos_scores = torch.sigmoid(pos_outputs.logits)
+                neg_scores = torch.sigmoid(neg_outputs.logits)
 
             margin_scores = torch.max(torch.zeros_like(pos_scores), margin - pos_scores + neg_scores)
 
