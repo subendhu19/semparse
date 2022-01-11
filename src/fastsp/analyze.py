@@ -4,16 +4,19 @@ import pickle
 import argparse
 from datetime import datetime
 
-from transformers import BertTokenizer, BertForSequenceClassification
+from transformers import BertTokenizerFast, BertForSequenceClassification
 from src.fastsp.utils import slot_descriptions
+from src.fastsp.train import ImplicitScorer, get_indices
 
 
 def find_all_spans(words, threshold):
     all_spans = []
+    all_sids = []
     for i in range(1, threshold):
         for j in range(0, len(words) - i + 1):
             all_spans.append(' '.join(words[j:j+i]))
-    return all_spans
+            all_sids.append((j, j+i))
+    return all_spans, all_sids
 
 
 entity_name_dict = {
@@ -52,7 +55,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
 
     # Data
     data_folder = args.data_folder
@@ -74,7 +77,11 @@ if __name__ == "__main__":
             os.path.join(save_folder, 'ho_{}_ev_{}_{}_analysis.txt'.format(held_out_intent, eval_intent,
                                                                            args.model_style)), 'w')
 
-    model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
+    if args.args.model_style in ['base', 'context']:
+        model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
+    else:
+        model = ImplicitScorer().to(device)
+
     if args.use_descriptions:
         model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}_{}_desc.pt'.
                                                       format(held_out_intent, args.model_style)))['model_state_dict'])
@@ -101,7 +108,7 @@ if __name__ == "__main__":
         utt = val_data[eval_intent]['utterances'][i]
         ets = val_data[eval_intent]['entities'][i]
 
-        spans = find_all_spans(utt.split(), span_threshold)
+        spans, span_ids = find_all_spans(utt.split(), span_threshold)
 
         analysis_file.write('UTTERANCE: {}\n\n'.format(utt))
         analysis_file.write('GOLD SPANS: \n\t{}\n\n'.format('\n\t'.join([a[0] + ' ## ' + a[1] for a in ets])))
@@ -118,11 +125,25 @@ if __name__ == "__main__":
                 inputs = ['[CLS] ' + ent_span + ' [SEP] ' + s + ' [SEP] ' + utt for s in spans]
             elif args.model_style == 'base':
                 inputs = ['[CLS] ' + ent_span + ' [SEP] ' + s for s in spans]
+            else:
+                start_id = len(tokenizer.tokenize(ent_span)) + 2
+                inp = tokenizer(utt, return_tensors="pt", add_special_tokens=False)
+                inputs = [['[CLS] ' + ent_span + ' [SEP] ' + utt,
+                          get_indices(spid, inp, start_id)] for spid in span_ids]
 
-            with torch.no_grad():
-                input_tensor = tokenizer(inputs, return_tensors="pt", padding=True,
-                                         add_special_tokens=False).to(device=device)
-                scores = torch.sigmoid(model(**input_tensor).logits)
+            if args.model_style == 'implicit':
+                with torch.no_grad():
+                    sents = [a[0] for a in inputs]
+                    sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
+                                             add_special_tokens=False).to(device=device)
+                    pos_spans = torch.tensor([a[1] for a in inputs]).to(device=device)
+
+                    scores = torch.sigmoid(model(sent_tensors, pos_spans))
+            else:
+                with torch.no_grad():
+                    input_tensor = tokenizer(inputs, return_tensors="pt", padding=True,
+                                             add_special_tokens=False).to(device=device)
+                    scores = torch.sigmoid(model(**input_tensor).logits)
 
             spans_w_scores = list(zip(spans, list(scores.squeeze())))
             spans_w_scores.sort(key=lambda x: x[1], reverse=True)
