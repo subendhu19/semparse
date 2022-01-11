@@ -77,7 +77,7 @@ if __name__ == "__main__":
             os.path.join(save_folder, 'ho_{}_ev_{}_{}_analysis.txt'.format(held_out_intent, eval_intent,
                                                                            args.model_style)), 'w')
 
-    if args.args.model_style in ['base', 'context']:
+    if args.model_style in ['base', 'context']:
         model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
     else:
         model = ImplicitScorer().to(device)
