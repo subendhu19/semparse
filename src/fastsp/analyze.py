@@ -73,11 +73,11 @@ if __name__ == "__main__":
 
     if args.use_descriptions:
         analysis_file = open(
-            os.path.join(save_folder, 'ho_{}_ev_{}_{}_desc_analysis.txt'.format(held_out_intent, eval_intent,
+            os.path.join(save_folder, 'analysis', 'ho_{}_ev_{}_{}_desc_analysis.txt'.format(held_out_intent, eval_intent,
                                                                                 args.model_style)), 'w')
     else:
         analysis_file = open(
-            os.path.join(save_folder, 'ho_{}_ev_{}_{}_analysis.txt'.format(held_out_intent, eval_intent,
+            os.path.join(save_folder, 'analysis', 'ho_{}_ev_{}_{}_analysis.txt'.format(held_out_intent, eval_intent,
                                                                            args.model_style)), 'w')
 
     if args.model_style in ['base', 'context']:
@@ -178,21 +178,21 @@ if __name__ == "__main__":
     if args.save_metrics:
         if args.use_descriptions:
             pickle.dump(metrics_counts, open(
-                os.path.join(save_folder, 'ho_{}_ev_{}_{}_desc_metrics.p'.format(held_out_intent, eval_intent,
+                os.path.join(save_folder, 'metrics', 'ho_{}_ev_{}_{}_desc_metrics.p'.format(held_out_intent, eval_intent,
                                                                                  args.model_style)), 'wb'))
         else:
             pickle.dump(metrics_counts, open(
-                os.path.join(save_folder, 'ho_{}_ev_{}_{}_metrics.p'.format(held_out_intent, eval_intent,
+                os.path.join(save_folder, 'metrics', 'ho_{}_ev_{}_{}_metrics.p'.format(held_out_intent, eval_intent,
                                                                             args.model_style)), 'wb'))
 
     if args.save_beam_search_file:
         if args.use_descriptions:
             pickle.dump(beam_search_utils, open(
-                os.path.join(save_folder, 'ho_{}_ev_{}_{}_desc_bs.p'.format(held_out_intent, eval_intent,
+                os.path.join(save_folder, 'beamsearch', 'ho_{}_ev_{}_{}_desc_bs.p'.format(held_out_intent, eval_intent,
                                                                             args.model_style)), 'wb'))
         else:
             pickle.dump(beam_search_utils, open(
-                os.path.join(save_folder, 'ho_{}_ev_{}_{}_bs.p'.format(held_out_intent, eval_intent,
+                os.path.join(save_folder, 'beamsearch', 'ho_{}_ev_{}_{}_bs.p'.format(held_out_intent, eval_intent,
                                                                        args.model_style)), 'wb'))
 
     print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
