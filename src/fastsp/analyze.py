@@ -49,6 +49,7 @@ if __name__ == "__main__":
     parser.add_argument('--log_every', type=int, default=100)
 
     parser.add_argument('--save_metrics', action='store_true')
+    parser.add_argument('--save_beam_search_file', action='store_true')
 
     parser.add_argument('--model_style', type=str, choices=['base', 'context', 'implicit'], default='base')
     parser.add_argument('--use_descriptions', action='store_true')
@@ -67,6 +68,8 @@ if __name__ == "__main__":
     eval_intent = args.eval_intent
     span_threshold = args.span_threshold
     device = "cuda:0"
+
+    beam_search_utils = []
 
     if args.use_descriptions:
         analysis_file = open(
@@ -113,6 +116,8 @@ if __name__ == "__main__":
         analysis_file.write('UTTERANCE: {}\n\n'.format(utt))
         analysis_file.write('GOLD SPANS: \n\t{}\n\n'.format('\n\t'.join([a[0] + ' ## ' + a[1] for a in ets])))
 
+        beam_search_ents = {}
+
         for ent in entity_names:
             analysis_file.write('ENTITY NAME: {}\n\t'.format(ent))
 
@@ -145,7 +150,7 @@ if __name__ == "__main__":
                                              add_special_tokens=False).to(device=device)
                     scores = torch.sigmoid(model(**input_tensor).logits)
 
-            spans_w_scores = list(zip(spans, list(scores.squeeze())))
+            spans_w_scores = list(zip(spans, list(scores.squeeze()), span_ids))
             spans_w_scores.sort(key=lambda x: x[1], reverse=True)
 
             for a in ets:
@@ -158,6 +163,10 @@ if __name__ == "__main__":
                     metrics_counts['all'].append(index)
 
             analysis_file.write('\n\t'.join([a[0] + ' ## ' + str(a[1]) for a in spans_w_scores[:5]]) + '\n\n')
+
+            beam_search_ents[ent] = spans_w_scores[:5]
+
+        beam_search_utils.append(beam_search_ents)
 
         analysis_file.write('\n\n############################################\n\n')
 
@@ -175,5 +184,15 @@ if __name__ == "__main__":
             pickle.dump(metrics_counts, open(
                 os.path.join(save_folder, 'ho_{}_ev_{}_{}_metrics.p'.format(held_out_intent, eval_intent,
                                                                             args.model_style)), 'wb'))
+
+    if args.save_beam_search_file:
+        if args.use_descriptions:
+            pickle.dump(beam_search_utils, open(
+                os.path.join(save_folder, 'ho_{}_ev_{}_{}_desc_bs.p'.format(held_out_intent, eval_intent,
+                                                                            args.model_style)), 'wb'))
+        else:
+            pickle.dump(beam_search_utils, open(
+                os.path.join(save_folder, 'ho_{}_ev_{}_{}_bs.p'.format(held_out_intent, eval_intent,
+                                                                       args.model_style)), 'wb'))
 
     print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
