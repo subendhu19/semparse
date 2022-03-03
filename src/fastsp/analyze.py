@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
             analysis_file.write('\n\t'.join([a[0] + ' ## ' + str(a[1]) for a in spans_w_scores[:5]]) + '\n\n')
 
-            beam_search_ents[ent] = spans_w_scores[:5]
+            beam_search_ents[ent] = [(a[0], a[1].cpu(), a[2]) for a in spans_w_scores[:5]]
 
         beam_search_utils.append(beam_search_ents)
 
