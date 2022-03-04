@@ -36,6 +36,7 @@ class BaseScorer(torch.nn.Module):
         self.bert = BertModel.from_pretrained('bert-base-uncased')
         # self.bias = torch.nn.ParameterDict({i: torch.nn.Parameter(torch.rand(1, len(tag_entity_name_dict[i])))
         #                                     for i in tag_entity_name_dict})
+        self.tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
 
     def forward(self, inputs, c_intent, use_descriptions=False):
         outs = self.bert(**inputs)
@@ -46,8 +47,8 @@ class BaseScorer(torch.nn.Module):
                 if slot_list[i] != "none":
                     slot_list[i] += ' : ' + slot_descriptions[c_intent][slot_list[i]]
 
-        slot_tensors = tokenizer(slot_list, return_tensors="pt", padding=True,
-                                 add_special_tokens=True).to(device=device)
+        slot_tensors = self.tokenizer(slot_list, return_tensors="pt", padding=True,
+                                      add_special_tokens=True).to(device=device)
 
         slot_outs = self.bert(**slot_tensors)
 
