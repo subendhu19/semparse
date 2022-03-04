@@ -40,11 +40,11 @@ class BaseScorer(torch.nn.Module):
     def forward(self, inputs, c_intent, use_descriptions=False):
         outs = self.bert(**inputs)
 
-        slot_list = tag_entity_name_dict[c_intent]
+        slot_list = [s for s in tag_entity_name_dict[c_intent]]
         if use_descriptions:
             for i in range(len(slot_list)):
                 if slot_list[i] != "none":
-                    slot_list[i] = slot_list[i] + ' : ' + slot_descriptions[c_intent][slot_list[i]]
+                    slot_list[i] += ' : ' + slot_descriptions[c_intent][slot_list[i]]
 
         slot_tensors = tokenizer(slot_list, return_tensors="pt", padding=True,
                                  add_special_tokens=True).to(device=device)
