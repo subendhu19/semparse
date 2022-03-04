@@ -63,6 +63,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--eval_intent', type=str, required=True)
     parser.add_argument('--held_out_intent', type=str, required=True)
+    parser.add_argument('--batch_size', type=int, default=64)
 
     parser.add_argument('--use_descriptions', action='store_true')
 
@@ -85,9 +86,7 @@ if __name__ == "__main__":
     held_out_intent = args.held_out_intent
     eval_intent = args.eval_intent
 
-    epochs = args.epochs
     batch_size = args.batch_size
-    log_every = args.log_every
     device = "cuda:0"
 
     model = BaseScorer().to(device)
