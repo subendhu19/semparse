@@ -34,8 +34,8 @@ class BaseScorer(torch.nn.Module):
     def __init__(self):
         super(BaseScorer, self).__init__()
         self.bert = BertModel.from_pretrained('bert-base-uncased')
-        self.bias = torch.nn.ParameterDict({i: torch.nn.Parameter(torch.rand(1, len(tag_entity_name_dict[i])))
-                                            for i in tag_entity_name_dict})
+        # self.bias = torch.nn.ParameterDict({i: torch.nn.Parameter(torch.rand(1, len(tag_entity_name_dict[i])))
+        #                                     for i in tag_entity_name_dict})
 
     def forward(self, inputs, c_intent):
         outs = self.bert(**inputs)
@@ -48,7 +48,10 @@ class BaseScorer(torch.nn.Module):
         token_level_outputs = outs['last_hidden_state']
         slot_vectors = slot_outs['last_hidden_state'][:, 0, :]
 
-        ret = torch.matmul(token_level_outputs, slot_vectors.T) + self.bias[c_intent]
+        mags = torch.clamp(torch.einsum('bp,r->bpr', torch.norm(token_level_outputs, dim=2),
+                                        torch.norm(slot_vectors, dim=1)),
+                           min=1e-08)
+        ret = torch.matmul(token_level_outputs, slot_vectors.T) / mags  # + self.bias[c_intent]
 
         return ret
 
