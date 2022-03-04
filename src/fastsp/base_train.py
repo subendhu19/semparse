@@ -37,10 +37,16 @@ class BaseScorer(torch.nn.Module):
         # self.bias = torch.nn.ParameterDict({i: torch.nn.Parameter(torch.rand(1, len(tag_entity_name_dict[i])))
         #                                     for i in tag_entity_name_dict})
 
-    def forward(self, inputs, c_intent):
+    def forward(self, inputs, c_intent, use_descriptions=False):
         outs = self.bert(**inputs)
 
-        slot_tensors = tokenizer(tag_entity_name_dict[c_intent], return_tensors="pt", padding=True,
+        slot_list = tag_entity_name_dict[c_intent]
+        if use_descriptions:
+            for i in range(len(slot_list)):
+                if slot_list[i] != "none":
+                    slot_list[i] = slot_list[i] + ' : ' + slot_descriptions[c_intent][slot_list[i]]
+
+        slot_tensors = tokenizer(slot_list, return_tensors="pt", padding=True,
                                  add_special_tokens=True).to(device=device)
 
         slot_outs = self.bert(**slot_tensors)
@@ -182,7 +188,7 @@ if __name__ == "__main__":
             sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
                                      add_special_tokens=False).to(device=device)
 
-            scores = model(sent_tensors, intent)
+            scores = model(sent_tensors, intent, args.use_descriptions)
 
             tags = [a[1] for a in mini_batch]
             pad = len(max(tags, key=len))
@@ -216,7 +222,7 @@ if __name__ == "__main__":
             sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
                                      add_special_tokens=False).to(device=device)
 
-            scores = model(sent_tensors, intent)
+            scores = model(sent_tensors, intent, args.use_descriptions)
 
             tags = [a[1] for a in mini_batch]
             pad = len(max(tags, key=len))
@@ -241,7 +247,7 @@ if __name__ == "__main__":
             sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
                                      add_special_tokens=False).to(device=device)
 
-            scores = model(sent_tensors, intent)
+            scores = model(sent_tensors, intent, args.use_descriptions)
 
             tags = [a[1] for a in mini_batch]
             pad = len(max(tags, key=len))
