@@ -149,6 +149,8 @@ if __name__ == "__main__":
             pad = len(max(tags, key=len))
             tags = torch.tensor([i + [-100]*(pad-len(i)) for i in tags]).to(device=device)
 
+            scores = scores.reshape(-1, scores.shape[2])
+            tags = tags.reshape(-1)
             loss = CE(scores, tags)
 
             optimizer.zero_grad()
