@@ -48,7 +48,7 @@ class BaseScorer(torch.nn.Module):
                     slot_list[i] += ' : ' + slot_descriptions[c_intent][slot_list[i]]
 
         slot_tensors = self.tokenizer(slot_list, return_tensors="pt", padding=True,
-                                      add_special_tokens=True).to(device=device)
+                                      add_special_tokens=True).to(device=self.bert.device)
 
         slot_outs = self.bert(**slot_tensors)
 

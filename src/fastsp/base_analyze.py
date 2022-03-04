@@ -137,7 +137,7 @@ if __name__ == "__main__":
         preds = torch.argmax(scores, dim=2)
 
         for j in range(len(preds)):
-            pred, gold = get_entities_from_tags(preds[i], golds[i], tokenizer.tokenize(sents[i]), intent)
+            pred, gold = get_entities_from_tags(preds[j], tags[j], tokenizer.tokenize(sents[j]), intent)
             predictions.append(pred)
             golds.append(gold)
 
