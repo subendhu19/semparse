@@ -65,7 +65,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--held_out_intent', type=str, required=True)
 
-    parser.add_argument('--epochs', type=int, default=2)
+    parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--log_every', type=int, default=10)
 
@@ -85,6 +85,7 @@ if __name__ == "__main__":
     save_folder = args.save_folder
 
     train_data = pickle.load(open(os.path.join(data_folder, 'base_train_data.p'), 'rb'))
+    val_data = pickle.load(open(os.path.join(data_folder, 'base_val_data.p'), 'rb'))
     intents = list(train_data.keys())
 
     held_out_intent = args.held_out_intent
@@ -107,6 +108,42 @@ if __name__ == "__main__":
     model.train()
 
     start_time = datetime.now()
+
+    val_processed_1 = []
+    for intent in train_intents:
+        all_examples = []
+        for i in range(len(val_data[intent]['utterances'])):
+            utt = val_data[intent]['utterances'][i]
+            utt_tok = tokenizer(utt, return_tensors="pt", add_special_tokens=False)
+            utt_ids = utt_tok.word_ids()
+
+            ti = val_data[intent]['tag_indices'][i]
+
+            nti = [ti[a] for a in utt_ids]
+
+            all_examples.append([utt, nti])
+
+        for i in range(0, len(all_examples), batch_size):
+            mini_batch = all_examples[i:i + batch_size]
+            val_processed_1.append((mini_batch, intent))
+
+    val_processed_2 = []
+    for intent in [held_out_intent]:
+        all_examples = []
+        for i in range(len(val_data[intent]['utterances'])):
+            utt = val_data[intent]['utterances'][i]
+            utt_tok = tokenizer(utt, return_tensors="pt", add_special_tokens=False)
+            utt_ids = utt_tok.word_ids()
+
+            ti = val_data[intent]['tag_indices'][i]
+
+            nti = [ti[a] for a in utt_ids]
+
+            all_examples.append([utt, nti])
+
+        for i in range(0, len(all_examples), batch_size):
+            mini_batch = all_examples[i:i + batch_size]
+            val_processed_2.append((mini_batch, intent))
 
     for epoch in range(epochs):
 
@@ -136,6 +173,8 @@ if __name__ == "__main__":
         update = 0
         total_updates = len(train_processed)
 
+        # Training
+        model.train()
         for i in range(0, len(train_processed)):
             mini_batch, intent = train_processed[i]
 
@@ -162,6 +201,60 @@ if __name__ == "__main__":
                 print("Epoch: {}/{} \t Update: {}/{} \t Loss: {} \t Time elapsed: {}".
                       format(epoch+1, epochs, update, total_updates, loss.item(), datetime.now() - start_time),
                       flush=True)
+
+        # Validation
+        print("End of epoch {}. Running validation...".format(epoch+1))
+        model.eval()
+
+        correct = 0
+        total = 0
+
+        for i in range(0, len(val_processed_1)):
+            mini_batch, intent = val_processed_1[i]
+
+            sents = [a[0] for a in mini_batch]
+            sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
+                                     add_special_tokens=False).to(device=device)
+
+            scores = model(sent_tensors, intent)
+
+            tags = [a[1] for a in mini_batch]
+            pad = len(max(tags, key=len))
+            tags = torch.tensor([i + [-100]*(pad-len(i)) for i in tags]).to(device=device)
+
+            scores = scores.reshape(-1, scores.shape[2])
+            preds = torch.argmax(scores, dim=1)
+            tags = tags.reshape(-1)
+
+            total += torch.sum(tags >= 0).item()
+            correct += torch.sum((tags >= 0) * (preds == tags)).item()
+
+        print('Same domain tagging accuracy: {:.2f}'.format(correct * 100.0 / total))
+
+        correct = 0
+        total = 0
+
+        for i in range(0, len(val_processed_2)):
+            mini_batch, intent = val_processed_2[i]
+
+            sents = [a[0] for a in mini_batch]
+            sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
+                                     add_special_tokens=False).to(device=device)
+
+            scores = model(sent_tensors, intent)
+
+            tags = [a[1] for a in mini_batch]
+            pad = len(max(tags, key=len))
+            tags = torch.tensor([i + [-100]*(pad-len(i)) for i in tags]).to(device=device)
+
+            scores = scores.reshape(-1, scores.shape[2])
+            preds = torch.argmax(scores, dim=1)
+            tags = tags.reshape(-1)
+
+            total += torch.sum(tags >= 0).item()
+            correct += torch.sum((tags >= 0) * (preds == tags)).item()
+
+        print('Out of domain tagging accuracy: {:.2f}'.format(correct * 100.0 / total))
 
     print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
 
