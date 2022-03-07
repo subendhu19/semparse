@@ -7,6 +7,7 @@ from transformers import BertTokenizerFast
 
 import random
 from src.fastsp.base_train import BaseScorer, tag_entity_name_dict
+import statistics
 
 random.seed(1100)
 
@@ -142,9 +143,34 @@ if __name__ == "__main__":
             predictions.append(pred)
             golds.append(gold)
 
-    for i in range(10):
-        print(golds[i])
-        print(predictions[i])
+    precision_n = 0
+    precision_d = 0
+    recall_n = 0
+    recall_d = 0
+    correct = 0
+
+    for i in range(len(predictions)):
+        for p in predictions[i]:
+            if p in golds[i]:
+                precision_n += 1
+            precision_d += 1
+
+        for p in golds[i]:
+            if p in predictions[i]:
+                recall_n += 1
+            recall_d += 1
+
+        if sorted(predictions[i]) == sorted(golds[i]):
+            correct += 1
+
+    precision = precision_n / precision_d * 100.0
+    recall = recall_n / recall_d * 100.0
+    em = correct / len(predictions) * 100.0
+
+    print('Precision: {:.2f}'.format(precision))
+    print('Recall: {:.2f}'.format(recall))
+    print('F1: {:.2f}'.format(statistics.harmonic_mean([precision, recall])))
+    print('EM Accuracy: {:.2f}'.format(em))
 
 
 
