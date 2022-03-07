@@ -66,6 +66,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=64)
 
     parser.add_argument('--use_descriptions', action='store_true')
+    parser.add_argument('--model_style', type=str, choices=['dot', 'ff', 'wdot'], default='dot')
 
     args = parser.parse_args()
 
@@ -89,14 +90,14 @@ if __name__ == "__main__":
     batch_size = args.batch_size
     device = "cuda:0"
 
-    model = BaseScorer().to(device)
+    model = BaseScorer(model_style=args.model_style).to(device)
 
     if args.use_descriptions:
-        model.load_state_dict(torch.load(os.path.join(save_folder, 'base_wo_{}_desc.pt'.
-                                                      format(held_out_intent)))['model_state_dict'])
+        model.load_state_dict(torch.load(os.path.join(save_folder, 'base_{}_wo_{}_desc_best.pt'.
+                                                      format(args.model_style, held_out_intent)))['model_state_dict'])
     else:
-        model.load_state_dict(torch.load(os.path.join(save_folder, 'base_wo_{}.pt'.
-                                                      format(held_out_intent)))['model_state_dict'])
+        model.load_state_dict(torch.load(os.path.join(save_folder, 'base_{}_wo_{}_best.pt'.
+                                                      format(args.model_style, held_out_intent)))['model_state_dict'])
 
     val_processed = []
     for intent in [eval_intent]:

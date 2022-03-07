@@ -31,12 +31,17 @@ tag_entity_name_dict = {
 
 
 class BaseScorer(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, model_style):
         super(BaseScorer, self).__init__()
         self.bert = BertModel.from_pretrained('bert-base-uncased')
         # self.bias = torch.nn.ParameterDict({i: torch.nn.Parameter(torch.rand(1, len(tag_entity_name_dict[i])))
         #                                     for i in tag_entity_name_dict})
         self.tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
+        self.model_style = model_style
+        if self.model_style == 'ff':
+            self.ff = torch.nn.Linear(2 * self.bert.config.hidden_size, 1)
+        elif self.model_style == 'wdot':
+            self.wdot = torch.nn.Bilinear(self.bert.config.hidden_size, self.bert.config.hidden_size, 1)
 
     def forward(self, inputs, c_intent, use_descriptions=False):
         outs = self.bert(**inputs)
@@ -59,7 +64,16 @@ class BaseScorer(torch.nn.Module):
         #                                 torch.norm(slot_vectors, dim=1)),
         #                    min=1e-08)
 
-        ret = torch.matmul(token_level_outputs, slot_vectors.T)  # / mags  # + self.bias[c_intent]
+        if self.model_style == 'dot':
+            ret = torch.matmul(token_level_outputs, slot_vectors.T)  # / mags  # + self.bias[c_intent]
+        elif self.model_style == 'wdot':
+            tok_mod = token_level_outputs.unsqueeze(2).repeat(1, 1, slot_vectors.shape[0], 1)
+            slot_mod = slot_vectors.unsqueeze(0).unsqueeze(1).repeat(tok_mod.shape[0], tok_mod.shape[1], 1, 1)
+            ret = self.wdot(tok_mod, slot_mod).squeeze()
+        else:
+            tok_mod = token_level_outputs.unsqueeze(2).repeat(1, 1, slot_vectors.shape[0], 1)
+            slot_mod = slot_vectors.unsqueeze(0).unsqueeze(1).repeat(tok_mod.shape[0], tok_mod.shape[1], 1, 1)
+            ret = self.ff(torch.cat([tok_mod, slot_mod], dim=3)).squeeze()
 
         return ret
 
@@ -78,6 +92,10 @@ if __name__ == "__main__":
     parser.add_argument('--log_every', type=int, default=10)
 
     parser.add_argument('--use_descriptions', action='store_true')
+
+    parser.add_argument('--patience', type=int, default=2)
+    parser.add_argument('--validate_every', type=int, default=1)
+    parser.add_argument('--model_style', type=str, choices=['dot', 'ff', 'wdot'], default='dot')
 
     args = parser.parse_args()
 
@@ -104,7 +122,7 @@ if __name__ == "__main__":
     log_every = args.log_every
     device = "cuda:0"
 
-    model = BaseScorer().to(device)
+    model = BaseScorer(model_style=args.model_style).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=2e-5)
 
@@ -152,6 +170,11 @@ if __name__ == "__main__":
         for i in range(0, len(all_examples), batch_size):
             mini_batch = all_examples[i:i + batch_size]
             val_processed_2.append((mini_batch, intent))
+
+    # Training metrics
+    ind_accuracies = []
+    ood_accuracies = []
+    patience_count = 0
 
     for epoch in range(epochs):
 
@@ -211,74 +234,98 @@ if __name__ == "__main__":
                       flush=True)
 
         # Validation
-        print("End of epoch {}. Running validation...".format(epoch+1))
-        model.eval()
+        if (epoch + 1) % args.validate_every == 0:
+            print("End of epoch {}. Running validation...".format(epoch+1))
+            model.eval()
 
-        correct = 0
-        total = 0
+            correct = 0
+            total = 0
 
-        for i in range(0, len(val_processed_1)):
-            mini_batch, intent = val_processed_1[i]
+            for i in range(0, len(val_processed_1)):
+                mini_batch, intent = val_processed_1[i]
 
-            sents = [a[0] for a in mini_batch]
-            sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
-                                     add_special_tokens=False).to(device=device)
+                sents = [a[0] for a in mini_batch]
+                sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
+                                         add_special_tokens=False).to(device=device)
 
-            scores = model(sent_tensors, intent, args.use_descriptions)
+                scores = model(sent_tensors, intent, args.use_descriptions)
 
-            tags = [a[1] for a in mini_batch]
-            pad = len(max(tags, key=len))
-            tags = torch.tensor([i + [-100]*(pad-len(i)) for i in tags]).to(device=device)
+                tags = [a[1] for a in mini_batch]
+                pad = len(max(tags, key=len))
+                tags = torch.tensor([i + [-100]*(pad-len(i)) for i in tags]).to(device=device)
 
-            scores = scores.reshape(-1, scores.shape[2])
-            preds = torch.argmax(scores, dim=1)
-            tags = tags.reshape(-1)
+                scores = scores.reshape(-1, scores.shape[2])
+                preds = torch.argmax(scores, dim=1)
+                tags = tags.reshape(-1)
 
-            mask_1 = tags >= 0
-            mask_2 = tags != (len(tag_entity_name_dict[intent]) - 1)
-            mask = mask_1 * mask_2
-            total += torch.sum(mask).item()
-            correct += torch.sum(mask * (preds == tags)).item()
+                mask_1 = tags >= 0
+                mask_2 = tags != (len(tag_entity_name_dict[intent]) - 1)
+                mask = mask_1 * mask_2
+                total += torch.sum(mask).item()
+                correct += torch.sum(mask * (preds == tags)).item()
 
-        print('Same domain tagging accuracy: {:.2f}'.format(correct * 100.0 / total))
+            acc = correct * 100.0 / total
+            print('Same domain tagging accuracy: {:.2f}'.format(acc))
+            if acc > max(ind_accuracies):
+                print('BEST SO FAR! Saving model...')
+                state_dict = {'model_state_dict': model.state_dict()}
+                if args.use_descriptions:
+                    save_path = os.path.join(save_folder, 'base_{}_wo_{}_desc_best.pt'.format(args.model_style,
+                                                                                              held_out_intent))
+                else:
+                    save_path = os.path.join(save_folder, 'base_{}_wo_{}_best.pt'.format(args.model_style,
+                                                                                         held_out_intent))
+                torch.save(state_dict, save_path)
+                print('Best checkpoint saved to {}'.format(save_path), flush=True)
+                patience_count = 0
+            else:
+                patience_count += 1
 
-        correct = 0
-        total = 0
+            ind_accuracies.append(acc)
 
-        for i in range(0, len(val_processed_2)):
-            mini_batch, intent = val_processed_2[i]
+            correct = 0
+            total = 0
 
-            sents = [a[0] for a in mini_batch]
-            sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
-                                     add_special_tokens=False).to(device=device)
+            for i in range(0, len(val_processed_2)):
+                mini_batch, intent = val_processed_2[i]
 
-            scores = model(sent_tensors, intent, args.use_descriptions)
+                sents = [a[0] for a in mini_batch]
+                sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
+                                         add_special_tokens=False).to(device=device)
 
-            tags = [a[1] for a in mini_batch]
-            pad = len(max(tags, key=len))
-            tags = torch.tensor([i + [-100]*(pad-len(i)) for i in tags]).to(device=device)
+                scores = model(sent_tensors, intent, args.use_descriptions)
 
-            scores = scores.reshape(-1, scores.shape[2])
-            preds = torch.argmax(scores, dim=1)
-            tags = tags.reshape(-1)
+                tags = [a[1] for a in mini_batch]
+                pad = len(max(tags, key=len))
+                tags = torch.tensor([i + [-100]*(pad-len(i)) for i in tags]).to(device=device)
 
-            mask_1 = tags >= 0
-            mask_2 = tags != (len(tag_entity_name_dict[intent]) - 1)
-            mask = mask_1 * mask_2
-            total += torch.sum(mask).item()
-            correct += torch.sum(mask * (preds == tags)).item()
+                scores = scores.reshape(-1, scores.shape[2])
+                preds = torch.argmax(scores, dim=1)
+                tags = tags.reshape(-1)
 
-        print('Out of domain tagging accuracy: {:.2f}'.format(correct * 100.0 / total))
+                mask_1 = tags >= 0
+                mask_2 = tags != (len(tag_entity_name_dict[intent]) - 1)
+                mask = mask_1 * mask_2
+                total += torch.sum(mask).item()
+                correct += torch.sum(mask * (preds == tags)).item()
+
+            acc = correct * 100.0 / total
+            print('Out of domain tagging accuracy: {:.2f}'.format(acc))
+            ood_accuracies.append(acc)
+
+            if patience_count > args.patience:
+                print('Ran out of patience. Exiting training.')
+                break
 
     print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
 
     state_dict = {'model_state_dict': model.state_dict()}
     if args.use_descriptions:
-        save_path = os.path.join(save_folder, 'base_wo_{}_desc.pt'.format(held_out_intent))
+        save_path = os.path.join(save_folder, 'base_{}_wo_{}_desc_latest.pt'.format(args.model_style, held_out_intent))
     else:
-        save_path = os.path.join(save_folder, 'base_wo_{}.pt'.format(held_out_intent))
+        save_path = os.path.join(save_folder, 'base_{}_wo_{}_latest.pt'.format(args.model_style, held_out_intent))
     torch.save(state_dict, save_path)
-    print('Checkpoint saved to {}'.format(save_path), flush=True)
+    print('Latest checkpoint saved to {}'.format(save_path), flush=True)
 
 
 
