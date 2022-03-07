@@ -172,8 +172,8 @@ if __name__ == "__main__":
             val_processed_2.append((mini_batch, intent))
 
     # Training metrics
-    ind_accuracies = []
-    ood_accuracies = []
+    ind_accuracies = [0]
+    ood_accuracies = [0]
     patience_count = 0
 
     for epoch in range(epochs):
