@@ -55,10 +55,11 @@ class BaseScorer(torch.nn.Module):
         token_level_outputs = outs['last_hidden_state']
         slot_vectors = slot_outs['last_hidden_state'][:, 0, :]
 
-        mags = torch.clamp(torch.einsum('bp,r->bpr', torch.norm(token_level_outputs, dim=2),
-                                        torch.norm(slot_vectors, dim=1)),
-                           min=1e-08)
-        ret = torch.matmul(token_level_outputs, slot_vectors.T) / mags  # + self.bias[c_intent]
+        # mags = torch.clamp(torch.einsum('bp,r->bpr', torch.norm(token_level_outputs, dim=2),
+        #                                 torch.norm(slot_vectors, dim=1)),
+        #                    min=1e-08)
+
+        ret = torch.matmul(token_level_outputs, slot_vectors.T)  # / mags  # + self.bias[c_intent]
 
         return ret
 
@@ -233,8 +234,11 @@ if __name__ == "__main__":
             preds = torch.argmax(scores, dim=1)
             tags = tags.reshape(-1)
 
-            total += torch.sum(tags >= 0).item()
-            correct += torch.sum((tags >= 0) * (preds == tags)).item()
+            mask_1 = tags >= 0
+            mask_2 = tags != (len(tag_entity_name_dict[intent]) - 1)
+            mask = mask_1 * mask_2
+            total += torch.sum(mask).item()
+            correct += torch.sum(mask * (preds == tags)).item()
 
         print('Same domain tagging accuracy: {:.2f}'.format(correct * 100.0 / total))
 
@@ -258,8 +262,11 @@ if __name__ == "__main__":
             preds = torch.argmax(scores, dim=1)
             tags = tags.reshape(-1)
 
-            total += torch.sum(tags >= 0).item()
-            correct += torch.sum((tags >= 0) * (preds == tags)).item()
+            mask_1 = tags >= 0
+            mask_2 = tags != (len(tag_entity_name_dict[intent]) - 1)
+            mask = mask_1 * mask_2
+            total += torch.sum(mask).item()
+            correct += torch.sum(mask * (preds == tags)).item()
 
         print('Out of domain tagging accuracy: {:.2f}'.format(correct * 100.0 / total))
 
