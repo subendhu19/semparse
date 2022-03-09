@@ -9,9 +9,34 @@ from transformers import BertTokenizerFast, BertForSequenceClassification, BertM
 import random
 from random import shuffle, sample
 from src.fastsp.utils import slot_descriptions
-from src.fastsp.analyze import find_all_spans, entity_name_dict
 
 random.seed(1100)
+
+
+def find_all_spans(words, threshold):
+    all_spans = []
+    all_sids = []
+    for i in range(1, threshold):
+        for j in range(0, len(words) - i + 1):
+            all_spans.append(' '.join(words[j:j+i]))
+            all_sids.append((j, j+i))
+    return all_spans, all_sids
+
+
+entity_name_dict = {
+    "PlayMusic": ["genre", "year", "sort", "service", "music item", "playlist", "album", "artist", "track"],
+    "RateBook": ["object name", "rating unit", "best rating", "rating value", "object type", "object select",
+                 "object part of series type"],
+    "SearchCreativeWork": ["object name", "object type"],
+    "GetWeather": ["state", "spatial relation", "condition description", "country", "timeRange", "city",
+                   "condition temperature", "current location", "geographic poi"],
+    "BookRestaurant": ["state", "spatial relation", "party size number", "sort", "country", "timeRange",
+                       "restaurant type", "served dish", "restaurant name", "city", "cuisine", "poi", "facility",
+                       "party size description"],
+    "SearchScreeningEvent": ["spatial relation", "object type", "timeRange", "movie name", "movie type",
+                             "location name", "object location type"],
+    "AddToPlaylist": ["music item", "entity name", "playlist", "artist", "playlist owner"]
+}
 
 
 def get_indices(span, ips, sid):
