@@ -130,7 +130,8 @@ if __name__ == "__main__":
         sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
                                  add_special_tokens=False).to(device=device)
 
-        scores = model(sent_tensors, intent, args.use_descriptions)
+        with torch.no_grad():
+            scores = model(sent_tensors, intent, args.use_descriptions)
 
         tags = [a[1] for a in mini_batch]
         pad = len(max(tags, key=len))

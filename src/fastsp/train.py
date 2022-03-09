@@ -9,7 +9,7 @@ from transformers import BertTokenizerFast, BertForSequenceClassification, BertM
 import random
 from random import shuffle, sample
 from src.fastsp.utils import slot_descriptions
-
+from src.fastsp.analyze import find_all_spans, entity_name_dict
 
 random.seed(1100)
 
@@ -48,12 +48,17 @@ if __name__ == "__main__":
 
     parser.add_argument('--held_out_intent', type=str, required=True)
 
+    parser.add_argument('--span_threshold', type=int, default=6)
+
     parser.add_argument('--epochs', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--log_every', type=int, default=10)
 
     parser.add_argument('--model_style', type=str, choices=['base', 'context', 'implicit'], default='base')
     parser.add_argument('--use_descriptions', action='store_true')
+
+    parser.add_argument('--patience', type=int, default=2)
+    parser.add_argument('--validate_every_update', type=int, default=500)
 
     args = parser.parse_args()
 
@@ -72,13 +77,17 @@ if __name__ == "__main__":
     # margin_train_data = pickle.load(open(os.path.join(data_folder, 'margin_train_data.p'), 'rb'))
     intents = list(train_entity_data.keys())
 
+    val_data = pickle.load(open(os.path.join(data_folder, 'val_data.p'), 'rb'))
+
     held_out_intent = args.held_out_intent
     train_intents = [i for i in intents if i != held_out_intent]
 
     epochs = args.epochs
     batch_size = args.batch_size
     log_every = args.log_every
+    validate_every_update = args.validate_every_update
     device = "cuda:0"
+    span_threshold = args.span_threshold
 
     if args.model_style in ['base', 'context']:
         model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1).to(device)
@@ -91,6 +100,9 @@ if __name__ == "__main__":
 
     print('Begin Training...', flush=True)
     model.train()
+
+    top1_scores = [0]
+    patience_count = 0
 
     start_time = datetime.now()
 
@@ -177,15 +189,157 @@ if __name__ == "__main__":
                       format(epoch+1, epochs, update, total_updates, loss.item(), datetime.now() - start_time),
                       flush=True)
 
+            if update % validate_every_update == 0:
+                print("Reached update {}. Running validation...".format(update), flush=True)
+                model.eval()
+
+                pred_ranks = []
+                # In domain validation
+                for eval_intent in train_intents:
+                    entity_names = entity_name_dict[eval_intent]
+
+                    for k in range(len(val_data[eval_intent]['utterances'])):
+                        utt = val_data[eval_intent]['utterances'][k]
+                        ets = val_data[eval_intent]['entities'][k]
+
+                        spans, span_ids = find_all_spans(utt.split(), span_threshold)
+
+                        for ent in entity_names:
+                            if args.use_descriptions:
+                                ent_span = ent + ' : ' + slot_descriptions[eval_intent][ent]
+                            else:
+                                ent_span = ent
+
+                            if args.model_style == 'context':
+                                inputs = ['[CLS] ' + ent_span + ' [SEP] ' + s + ' [SEP] ' + utt for s in spans]
+                            elif args.model_style == 'base':
+                                inputs = ['[CLS] ' + ent_span + ' [SEP] ' + s for s in spans]
+                            else:
+                                start_id = len(tokenizer.tokenize(ent_span)) + 2
+                                inp = tokenizer(utt, return_tensors="pt", add_special_tokens=False)
+                                inputs = [['[CLS] ' + ent_span + ' [SEP] ' + utt,
+                                           get_indices(spid, inp, start_id)] for spid in span_ids]
+
+                            if args.model_style == 'implicit':
+                                with torch.no_grad():
+                                    sents = [inputs[0][0]]
+                                    sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
+                                                             add_special_tokens=False).to(device=device)
+                                    pos_spans = torch.tensor([a[1] for a in inputs]).to(device=device)
+
+                                    scores = torch.sigmoid(model(sent_tensors, pos_spans))
+                            else:
+                                with torch.no_grad():
+                                    input_tensor = tokenizer(inputs, return_tensors="pt", padding=True,
+                                                             add_special_tokens=False).to(device=device)
+                                    scores = torch.sigmoid(model(**input_tensor).logits)
+
+                            spans_w_scores = list(zip(spans, list(scores.squeeze()), span_ids))
+                            spans_w_scores.sort(key=lambda x: x[1], reverse=True)
+
+                            for a in ets:
+                                if a[1].replace('_', ' ') == ent:
+                                    index = -1
+                                    sspans = [b[0] for b in spans_w_scores]
+                                    if a[0] in sspans:
+                                        index = sspans.index(a[0])
+                                    pred_ranks.append(index)
+
+                correct = len([r for r in pred_ranks if r == 1])
+                total = len(pred_ranks)
+                acc = correct * 100.0 / total
+
+                print('Same domain Top1 Accuracy: {:.2f}'.format(acc), flush=True)
+
+                if acc > max(top1_scores):
+                    print('BEST SO FAR! Saving model...', flush=True)
+                    state_dict = {'model_state_dict': model.state_dict()}
+                    if args.use_descriptions:
+                        save_path = os.path.join(save_folder, 'joint_{}_wo_{}_desc_best.pt'.format(args.model_style,
+                                                                                                   held_out_intent))
+                    else:
+                        save_path = os.path.join(save_folder, 'joint_{}_wo_{}_best.pt'.format(args.model_style,
+                                                                                              held_out_intent))
+                    torch.save(state_dict, save_path)
+                    print('Best checkpoint saved to {}'.format(save_path), flush=True)
+                    patience_count = 0
+                else:
+                    patience_count += 1
+
+                top1_scores.append(acc)
+
+                # OOD validation
+                eval_intent = held_out_intent
+                entity_names = entity_name_dict[eval_intent]
+
+                pred_ranks = []
+                for k in range(len(val_data[eval_intent]['utterances'])):
+                    utt = val_data[eval_intent]['utterances'][k]
+                    ets = val_data[eval_intent]['entities'][k]
+
+                    spans, span_ids = find_all_spans(utt.split(), span_threshold)
+
+                    for ent in entity_names:
+                        if args.use_descriptions:
+                            ent_span = ent + ' : ' + slot_descriptions[eval_intent][ent]
+                        else:
+                            ent_span = ent
+
+                        if args.model_style == 'context':
+                            inputs = ['[CLS] ' + ent_span + ' [SEP] ' + s + ' [SEP] ' + utt for s in spans]
+                        elif args.model_style == 'base':
+                            inputs = ['[CLS] ' + ent_span + ' [SEP] ' + s for s in spans]
+                        else:
+                            start_id = len(tokenizer.tokenize(ent_span)) + 2
+                            inp = tokenizer(utt, return_tensors="pt", add_special_tokens=False)
+                            inputs = [['[CLS] ' + ent_span + ' [SEP] ' + utt,
+                                       get_indices(spid, inp, start_id)] for spid in span_ids]
+
+                        if args.model_style == 'implicit':
+                            with torch.no_grad():
+                                sents = [inputs[0][0]]
+                                sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
+                                                         add_special_tokens=False).to(device=device)
+                                pos_spans = torch.tensor([a[1] for a in inputs]).to(device=device)
+
+                                scores = torch.sigmoid(model(sent_tensors, pos_spans))
+                        else:
+                            with torch.no_grad():
+                                input_tensor = tokenizer(inputs, return_tensors="pt", padding=True,
+                                                         add_special_tokens=False).to(device=device)
+                                scores = torch.sigmoid(model(**input_tensor).logits)
+
+                        spans_w_scores = list(zip(spans, list(scores.squeeze()), span_ids))
+                        spans_w_scores.sort(key=lambda x: x[1], reverse=True)
+
+                        for a in ets:
+                            if a[1].replace('_', ' ') == ent:
+                                index = -1
+                                sspans = [b[0] for b in spans_w_scores]
+                                if a[0] in sspans:
+                                    index = sspans.index(a[0])
+                                pred_ranks.append(index)
+
+                correct = len([r for r in pred_ranks if r == 1])
+                total = len(pred_ranks)
+
+                print('Out of domain Top1 Accuracy: {:.2f}'.format(correct * 100.0 / total), flush=True)
+
+                if patience_count > args.patience:
+                    print('Ran out of patience. Exiting training.', flush=True)
+                    break
+
     print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
 
     state_dict = {'model_state_dict': model.state_dict()}
     if args.use_descriptions:
-        save_path = os.path.join(save_folder, 'bert_wo_{}_{}_desc.pt'.format(held_out_intent, args.model_style))
+        save_path = os.path.join(save_folder, 'joint_{}_wo_{}_desc_latest.pt'.format(args.model_style,
+                                                                                     held_out_intent))
     else:
-        save_path = os.path.join(save_folder, 'bert_wo_{}_{}.pt'.format(held_out_intent, args.model_style))
+        save_path = os.path.join(save_folder, 'joint_{}_wo_{}_latest.pt'.format(args.model_style,
+                                                                                held_out_intent))
     torch.save(state_dict, save_path)
-    print('Checkpoint saved to {}'.format(save_path), flush=True)
+    print('Latest checkpoint saved to {}'.format(save_path), flush=True)
 
 
 

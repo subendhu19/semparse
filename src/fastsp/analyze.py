@@ -86,11 +86,11 @@ if __name__ == "__main__":
         model = ImplicitScorer().to(device)
 
     if args.use_descriptions:
-        model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}_{}_desc.pt'.
-                                                      format(held_out_intent, args.model_style)))['model_state_dict'])
+        model.load_state_dict(torch.load(os.path.join(save_folder, 'joint_{}_wo_{}_desc_best.pt'.
+                                                      format(args.model_style, held_out_intent)))['model_state_dict'])
     else:
-        model.load_state_dict(torch.load(os.path.join(save_folder, 'bert_wo_{}_{}.pt'.
-                                                      format(held_out_intent, args.model_style)))['model_state_dict'])
+        model.load_state_dict(torch.load(os.path.join(save_folder, 'joint_{}_wo_{}_best.pt'.
+                                                      format(args.model_style, held_out_intent)))['model_state_dict'])
 
     model.eval()
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
 
             if args.model_style == 'implicit':
                 with torch.no_grad():
-                    sents = [a[0] for a in inputs]
+                    sents = [inputs[0][0]]
                     sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
                                              add_special_tokens=False).to(device=device)
                     pos_spans = torch.tensor([a[1] for a in inputs]).to(device=device)

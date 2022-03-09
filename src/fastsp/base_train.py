@@ -235,7 +235,7 @@ if __name__ == "__main__":
 
         # Validation
         if (epoch + 1) % args.validate_every == 0:
-            print("End of epoch {}. Running validation...".format(epoch+1))
+            print("End of epoch {}. Running validation...".format(epoch+1), flush=True)
             model.eval()
 
             correct = 0
@@ -248,7 +248,8 @@ if __name__ == "__main__":
                 sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
                                          add_special_tokens=False).to(device=device)
 
-                scores = model(sent_tensors, intent, args.use_descriptions)
+                with torch.no_grad():
+                    scores = model(sent_tensors, intent, args.use_descriptions)
 
                 tags = [a[1] for a in mini_batch]
                 pad = len(max(tags, key=len))
@@ -265,7 +266,7 @@ if __name__ == "__main__":
                 correct += torch.sum(mask * (preds == tags)).item()
 
             acc = correct * 100.0 / total
-            print('Same domain tagging accuracy: {:.2f}'.format(acc))
+            print('Same domain tagging accuracy: {:.2f}'.format(acc), flush=True)
             if acc > max(ind_accuracies):
                 print('BEST SO FAR! Saving model...')
                 state_dict = {'model_state_dict': model.state_dict()}
@@ -293,7 +294,8 @@ if __name__ == "__main__":
                 sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
                                          add_special_tokens=False).to(device=device)
 
-                scores = model(sent_tensors, intent, args.use_descriptions)
+                with torch.no_grad():
+                    scores = model(sent_tensors, intent, args.use_descriptions)
 
                 tags = [a[1] for a in mini_batch]
                 pad = len(max(tags, key=len))
@@ -310,11 +312,11 @@ if __name__ == "__main__":
                 correct += torch.sum(mask * (preds == tags)).item()
 
             acc = correct * 100.0 / total
-            print('Out of domain tagging accuracy: {:.2f}'.format(acc))
+            print('Out of domain tagging accuracy: {:.2f}'.format(acc), flush=True)
             ood_accuracies.append(acc)
 
             if patience_count > args.patience:
-                print('Ran out of patience. Exiting training.')
+                print('Ran out of patience. Exiting training.', flush=True)
                 break
 
     print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
