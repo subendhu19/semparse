@@ -133,6 +133,8 @@ if __name__ == "__main__":
 
     for epoch in range(epochs):
 
+        exit_training = False
+
         margin_train_data = {i: [] for i in intents}
         for intent in intents:
             for et in train_entity_data[intent]:
@@ -352,7 +354,11 @@ if __name__ == "__main__":
 
                 if patience_count > args.patience:
                     print('Ran out of patience. Exiting training.', flush=True)
+                    exit_training = True
                     break
+
+        if exit_training:
+            break
 
     print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
 
