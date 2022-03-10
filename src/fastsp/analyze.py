@@ -7,6 +7,20 @@ from datetime import datetime
 from transformers import BertTokenizerFast, BertForSequenceClassification
 from src.fastsp.utils import slot_descriptions
 from src.fastsp.train import ImplicitScorer, get_indices, find_all_spans, entity_name_dict
+import statistics
+
+
+def check_overlap(spans, span):
+    for cspan in spans:
+        if cspan[2][0] <= span[2][0] < cspan[2][1]:
+            return True
+        if cspan[2][0] < span[2][1] <= cspan[2][1]:
+            return True
+        if span[2][0] <= cspan[2][0] and span[2][1] >= cspan[2][1]:
+            return True
+        if span[0] == cspan[0]:
+            return True
+    return False
 
 
 if __name__ == "__main__":
@@ -222,3 +236,40 @@ if __name__ == "__main__":
             mrr.append(1 / (r + 1))
     print('\t{}: {:.4f}'.format('OVERALL', sum(mrr) / len(mrr)))
     print()
+    print()
+
+    threshold = 0.1
+    precision_n = 0
+    precision_d = 0
+    recall_n = 0
+    recall_d = 0
+
+    for eid in range(len(beam_search_utils)):
+        ex = beam_search_utils[eid]
+        all_spans = [[en, a[0], a[2], a[1].item()] for en in ex for a in ex[en]]
+        all_spans.sort(key=lambda x: x[3], reverse=True)
+        all_spans = [a for a in all_spans if a[3] > threshold]
+
+        greedy_decode = []
+        for sp in all_spans:
+            if check_overlap(greedy_decode, sp) is False:
+                greedy_decode.append(sp)
+
+        preds = [(a[0].replace(' ', '_'), a[1]) for a in greedy_decode]
+        gold = [(a[1], a[0]) for a in val_data[eval_intent]['entities'][eid]]
+
+        for p in preds:
+            if p in gold:
+                precision_n += 1
+            precision_d += 1
+
+        for p in gold:
+            if p in preds:
+                recall_n += 1
+            recall_d += 1
+
+    precision = precision_n / precision_d * 100.0
+    recall = recall_n / recall_d * 100.0
+    print('Precision: {:.2f}'.format(precision))
+    print('Recall: {:.2f}'.format(recall))
+    print('F1: {:.2f}'.format(statistics.harmonic_mean([precision, recall])))
