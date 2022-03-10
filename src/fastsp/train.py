@@ -272,7 +272,7 @@ if __name__ == "__main__":
                                         index = sspans.index(a[0])
                                     pred_ranks.append(index)
 
-                correct = len([r for r in pred_ranks if r == 1])
+                correct = len([r for r in pred_ranks if r == 0])
                 total = len(pred_ranks)
                 acc = correct * 100.0 / total
 
@@ -347,7 +347,7 @@ if __name__ == "__main__":
                                     index = sspans.index(a[0])
                                 pred_ranks.append(index)
 
-                correct = len([r for r in pred_ranks if r == 1])
+                correct = len([r for r in pred_ranks if r == 0])
                 total = len(pred_ranks)
 
                 print('Out of domain Top1 Accuracy: {:.2f}'.format(correct * 100.0 / total), flush=True)

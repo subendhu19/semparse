@@ -28,6 +28,8 @@ if __name__ == "__main__":
     parser.add_argument('--model_style', type=str, choices=['base', 'context', 'implicit'], default='base')
     parser.add_argument('--use_descriptions', action='store_true')
 
+    parser.add_argument('--k', type=int, default=1)
+
     args = parser.parse_args()
 
     tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
@@ -149,6 +151,8 @@ if __name__ == "__main__":
 
     analysis_file.close()
 
+    print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
+
     if args.save_metrics:
         if args.use_descriptions:
             pickle.dump(metrics_counts, open(
@@ -169,4 +173,52 @@ if __name__ == "__main__":
                 os.path.join(save_folder, 'beamsearch', 'ho_{}_ev_{}_{}_bs.p'.format(held_out_intent, eval_intent,
                                                                        args.model_style)), 'wb'))
 
-    print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
+    k = args.k
+    print('Trained without: {}'.format(held_out_intent))
+    print('Evaluated on : {}'.format(eval_intent))
+    print()
+    print('Top {} accuracy'.format(k))
+    for i in metrics_counts:
+        if i == 'all':
+            continue
+        else:
+            total = 0
+            count = 0
+            for r in metrics_counts[i]:
+                total += 1
+                if (r < k) and (r != -1):
+                    count += 1
+            print('\t{}: {:.2f}%'.format(i.upper(), count / total * 100))
+
+    print()
+    total = 0
+    count = 0
+    for r in metrics_counts['all']:
+        total += 1
+        if (r < k) and (r != -1):
+            count += 1
+    print('\t{}: {:.2f}%'.format('OVERALL', count / total * 100))
+    print()
+
+    print('Mean Reciprocal Rank')
+    for i in metrics_counts:
+        if i == 'all':
+            continue
+        else:
+            mrr = []
+            for r in metrics_counts[i]:
+                if r == -1:
+                    mrr.append(0)
+                else:
+                    mrr.append(1 / (r + 1))
+            print('\t{}: {:.4f}'.format(i.upper(), sum(mrr) / len(mrr)))
+
+    print()
+    mrr = []
+    for r in metrics_counts['all']:
+        if r == -1:
+            mrr.append(0)
+        else:
+            mrr.append(1 / (r + 1))
+    print('\t{}: {:.4f}'.format('OVERALL', sum(mrr) / len(mrr)))
+    print()
