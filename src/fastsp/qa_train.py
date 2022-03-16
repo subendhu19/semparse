@@ -149,7 +149,7 @@ if __name__ == "__main__":
     model = AutoModelForQuestionAnswering.from_pretrained(model_checkpoint)
 
     model_name = model_checkpoint.split("/")[-1]
-    args = TrainingArguments(
+    targs = TrainingArguments(
         f"{args.save_folder}/{model_name}-finetuned-squad",
         evaluation_strategy="epoch",
         learning_rate=2e-5,
@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
     trainer = Trainer(
         model,
-        args,
+        targs,
         train_dataset=ood_tokenized_datasets["train"],
         eval_dataset=ood_tokenized_datasets["validation"],
         data_collator=data_collator,
