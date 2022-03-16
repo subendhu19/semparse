@@ -120,14 +120,11 @@ if __name__ == "__main__":
 
     parser.add_argument('--held_out_intent', type=str, required=True)
 
-    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--epochs', type=int, default=3)
     parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--log_every', type=int, default=10)
 
     parser.add_argument('--use_descriptions', action='store_true')
 
-    parser.add_argument('--patience', type=int, default=2)
-    parser.add_argument('--validate_every', type=int, default=1)
     parser.add_argument('--use_negative_examples', action='store_true')
 
     args = parser.parse_args()
@@ -141,6 +138,7 @@ if __name__ == "__main__":
 
     if args.use_descriptions:
         max_length = 64
+        use_descriptions = True
 
     ood_tokenized_datasets = ood_dataset.map(prepare_train_features, batched=True,
                                              remove_columns=ood_dataset["train"].column_names)
@@ -157,7 +155,7 @@ if __name__ == "__main__":
         learning_rate=2e-5,
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
-        num_train_epochs=3,
+        num_train_epochs=args.epochs,
         weight_decay=0.01,
         push_to_hub=False,
     )
