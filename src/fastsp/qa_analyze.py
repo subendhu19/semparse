@@ -8,12 +8,13 @@ import random
 from src.fastsp.utils import slot_descriptions
 import datasets
 
-from src.fastsp.qa_train import tag_entity_name_dict, prepare_train_features
+from src.fastsp.qa_train import tag_entity_name_dict
 import collections
 from tqdm.auto import tqdm
 import numpy as np
-from datasets import load_metric
+from datasets import load_metric, Dataset
 import pickle
+import json
 
 
 random.seed(1100)
@@ -26,7 +27,7 @@ squad_v2 = False
 
 
 def prepare_validation_features(examples):
-    slot_questions = [e.replace('_', ' ') for e in examples["question"]]
+    slot_questions = examples["question"]
 
     if use_descriptions:
         intents = examples["title"]
@@ -78,6 +79,7 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
 
     # The dictionaries we have to fill.
     predictions = collections.OrderedDict()
+    original_predictions = collections.OrderedDict()
 
     # Logging.
     print(f"Post-processing {len(examples)} example predictions split into {len(features)} features.")
@@ -141,20 +143,31 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
             best_answer = {"text": "", "score": 0.0}
 
         # Let's pick our final answer: the best one or the null answer (only for squad_v2)
+
+        if example["original_id"] not in original_predictions:
+            original_predictions[example["original_id"]] = []
+
         if not squad_v2:
             predictions[example["id"]] = best_answer["text"]
+            original_predictions[example["original_id"]].append((example["question"],
+                                                                 best_answer["text"],
+                                                                 best_answer["score"]))
         else:
             answer = best_answer["text"] if best_answer["score"] > min_null_score else ""
+            ascore = best_answer["score"] if best_answer["score"] > min_null_score else min_null_score
             predictions[example["id"]] = answer
+            original_predictions[example["original_id"]].append((example["question"],
+                                                                 answer,
+                                                                 ascore))
 
-    return predictions
+    return predictions, original_predictions
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Analyzing QA models for fast semantic parsing")
 
-    parser.add_argument('--data_folder', type=str, default='/home/srongali/data/snips/qa')
+    parser.add_argument('--data_folder', type=str, default='/home/srongali/data/snips/raw')
     parser.add_argument('--save_folder', type=str, default='/mnt/nfs/scratch1/srongali/semparse/snips')
     parser.add_argument('--checkpoint_name', type=str, default='bert-base-uncased-finetuned-squad')
 
@@ -164,10 +177,44 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    intent = args.held_out_intent
+
     model_checkpoint = os.path.join(args.save_folder, args.checkpoint_name, 'checkpoint-500')
 
-    ood_dataset = datasets.load_from_disk(os.path.join(args.data_folder, args.held_out_intent, 'ood'))
-    sd_dataset = datasets.load_from_disk(os.path.join(args.data_folder, args.held_out_intent, 'sd'))
+    val_json = json.load(open(os.path.join(args.data_folder,
+                                           'validate_{}.json'.format(intent)), 'rb'))
+
+    example_id = 0
+    original_id = 0
+    val_qa_data = {'question': [], 'answers': [], 'context': [], 'id': [], 'title': []}
+    gold_entities = {}
+    for i in range(len(val_json[intent])):
+        text_so_far = ""
+        context = ''.join([a['text'] for a in val_json[intent][i]['data']])
+
+        for ent in tag_entity_name_dict[intent]:
+            val_qa_data['question'].append(ent)
+            val_qa_data['answers'].append({'answer_start': [0], 'text': [""]})
+            val_qa_data['context'].append(context)
+            val_qa_data['id'].append(example_id)
+            val_qa_data['original_id'].append(original_id)
+            val_qa_data['title'].append(intent)
+
+            example_id += 1
+
+        for a in val_json[intent][i]['data']:
+            if 'entity' in a:
+                start_idx = len(text_so_far)
+                if original_id not in gold_entities:
+                    gold_entities[original_id] = []
+
+                gold_entities[original_id].append((a['entity'].replace('_', ' '), a['text'], start_idx))
+
+            text_so_far = text_so_far + a['text']
+
+        original_id += 1
+
+    val_dataset = Dataset.from_dict(val_qa_data)
 
     tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
@@ -195,10 +242,10 @@ if __name__ == "__main__":
         tokenizer=tokenizer,
     )
 
-    validation_features = sd_dataset["validation"].map(
+    validation_features = val_dataset.map(
         prepare_validation_features,
         batched=True,
-        remove_columns=sd_dataset["validation"].column_names
+        remove_columns=val_dataset.column_names
     )
 
     raw_predictions = trainer.predict(validation_features)
@@ -206,8 +253,9 @@ if __name__ == "__main__":
     validation_features.set_format(type=validation_features.format["type"],
                                    columns=list(validation_features.features.keys()))
 
-    final_predictions = postprocess_qa_predictions(sd_dataset["validation"], validation_features,
-                                                   raw_predictions.predictions)
+    final_predictions, final_original_predictions = postprocess_qa_predictions(val_dataset,
+                                                                               validation_features,
+                                                                               raw_predictions.predictions)
 
     metric = load_metric("squad_v2" if squad_v2 else "squad")
 
@@ -216,9 +264,18 @@ if __name__ == "__main__":
                                  final_predictions.items()]
     else:
         formatted_predictions = [{"id": k, "prediction_text": v} for k, v in final_predictions.items()]
-    references = [{"id": ex["id"], "answers": ex["answers"]} for ex in sd_dataset["validation"]]
-    # metric.compute(predictions=formatted_predictions, references=references)
 
-    pickle.dump(formatted_predictions, open(os.path.join(args.save_folder, 'preds.p'), 'wb'))
-    pickle.dump(references, open(os.path.join(args.save_folder, 'refs.p'), 'wb'))
+    # metric.compute(predictions=formatted_predictions, references=references)
+    for k in final_original_predictions:
+        print('Example ID: {}'.format(k))
+        print('GOLD: ')
+        print(gold_entities[k])
+        print()
+        print('PRED: ')
+        for pred_ent in sorted(final_original_predictions[k], key=lambda x: x[-1], reverse=True):
+            print(pred_ent)
+        print()
+
+
+
 
