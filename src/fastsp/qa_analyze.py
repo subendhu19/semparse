@@ -216,7 +216,7 @@ if __name__ == "__main__":
                                  final_predictions.items()]
     else:
         formatted_predictions = [{"id": k, "prediction_text": v} for k, v in final_predictions.items()]
-    references = [{"id": ex["id"], "answers": ex["answers"]} for ex in datasets["validation"]]
+    references = [{"id": ex["id"], "answers": ex["answers"]} for ex in ood_dataset["validation"]]
     metric.compute(predictions=formatted_predictions, references=references)
 
     pickle.dump(formatted_predictions, open(os.path.join(args.save_path, 'preds.p'), 'wb'))
