@@ -131,7 +131,8 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
                     valid_answers.append(
                         {
                             "score": start_logits[start_index] + end_logits[end_index],
-                            "text": context[start_char: end_char]
+                            "text": context[start_char: end_char],
+                            "start_char": start_char
                         }
                     )
 
@@ -151,6 +152,7 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
             predictions[example["id"]] = best_answer["text"]
             original_predictions[example["original_id"]].append((example["question"],
                                                                  best_answer["text"],
+                                                                 best_answer["start_char"],
                                                                  best_answer["score"]))
         else:
             answer = best_answer["text"] if best_answer["score"] > min_null_score else ""
@@ -158,6 +160,7 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
             predictions[example["id"]] = answer
             original_predictions[example["original_id"]].append((example["question"],
                                                                  answer,
+                                                                 best_answer["start_char"],
                                                                  ascore))
 
     return predictions, original_predictions
