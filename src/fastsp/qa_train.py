@@ -147,9 +147,14 @@ if __name__ == "__main__":
 
     model = AutoModelForQuestionAnswering.from_pretrained(model_checkpoint)
 
-    model_name = model_checkpoint.split("/")[-1]
+    model_name = 'qa_wo_{}'.format(args.held_out_intent)
+    if args.use_descriptions:
+        model_name += '_desc'
+    if args.use_negative_examples:
+        model_name += '_neg'
+
     targs = TrainingArguments(
-        f"{args.save_folder}/{model_name}-finetuned-squad",
+        f"{args.save_folder}/{model_name}-checkpoints",
         evaluation_strategy="epoch",
         learning_rate=2e-5,
         per_device_train_batch_size=args.batch_size,
@@ -157,6 +162,7 @@ if __name__ == "__main__":
         num_train_epochs=args.epochs,
         weight_decay=0.01,
         push_to_hub=False,
+        load_best_model_at_end=True
     )
 
     data_collator = default_data_collator
@@ -172,7 +178,7 @@ if __name__ == "__main__":
 
     trainer.train()
 
-    trainer.save_model(f"{args.save_folder}/test-squad-trained")
+    trainer.save_model(f"{args.save_folder}/{model_name}-best")
 
 
 

@@ -8,7 +8,6 @@ from src.fastsp.utils import slot_descriptions
 
 from src.fastsp.qa_train import tag_entity_name_dict
 import collections
-from tqdm.auto import tqdm
 import numpy as np
 from datasets import load_metric, Dataset
 import statistics
@@ -81,10 +80,10 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
     original_predictions = collections.OrderedDict()
 
     # Logging.
-    print(f"Post-processing {len(examples)} example predictions split into {len(features)} features.")
+    # print(f"Post-processing {len(examples)} example predictions split into {len(features)} features.")
 
     # Let's loop over all the examples!
-    for example_index, example in enumerate(tqdm(examples)):
+    for example_index, example in enumerate(examples):
         # Those are the indices of the features associated to the current example.
         feature_indices = features_per_example[example_index]
 
@@ -194,6 +193,7 @@ if __name__ == "__main__":
     parser.add_argument('--checkpoint_name', type=str, default='bert-base-uncased-finetuned-squad')
 
     parser.add_argument('--held_out_intent', type=str, required=True)
+    parser.add_argument('--train_held_out_intent', type=str)
     parser.add_argument('--use_descriptions', action='store_true')
     parser.add_argument('--use_negative_examples', action='store_true')
     parser.add_argument('--score_threshold', type=int, default=0)
@@ -201,9 +201,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     intent = args.held_out_intent
+    train_intent = args.train_held_out_intent if args.train_held_out_intent else intent
     threshold = args.score_threshold
 
-    model_checkpoint = os.path.join(args.save_folder, args.checkpoint_name, 'checkpoint-500')
+    model_name = 'qa_wo_{}'.format(train_intent)
+    if args.use_descriptions:
+        model_name += '_desc'
+    if args.use_negative_examples:
+        model_name += '_neg'
+    model_name += '-best'
+
+    model_checkpoint = os.path.join(args.save_folder, model_name)
 
     val_json = json.load(open(os.path.join(args.data_folder,
                                            'validate_{}.json'.format(intent)), 'rb'))
