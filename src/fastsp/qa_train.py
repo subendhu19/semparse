@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--held_out_intent', type=str, required=True)
 
-    parser.add_argument('--epochs', type=int, default=3)
+    parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--batch_size', type=int, default=64)
 
     parser.add_argument('--use_descriptions', action='store_true')
