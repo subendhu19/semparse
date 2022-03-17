@@ -195,10 +195,10 @@ if __name__ == "__main__":
         tokenizer=tokenizer,
     )
 
-    validation_features = ood_dataset["validation"].map(
+    validation_features = sd_dataset["validation"].map(
         prepare_validation_features,
         batched=True,
-        remove_columns=ood_dataset["validation"].column_names
+        remove_columns=sd_dataset["validation"].column_names
     )
 
     raw_predictions = trainer.predict(validation_features)
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     validation_features.set_format(type=validation_features.format["type"],
                                    columns=list(validation_features.features.keys()))
 
-    final_predictions = postprocess_qa_predictions(ood_dataset["validation"], validation_features,
+    final_predictions = postprocess_qa_predictions(sd_dataset["validation"], validation_features,
                                                    raw_predictions.predictions)
 
     metric = load_metric("squad_v2" if squad_v2 else "squad")
@@ -216,7 +216,7 @@ if __name__ == "__main__":
                                  final_predictions.items()]
     else:
         formatted_predictions = [{"id": k, "prediction_text": v} for k, v in final_predictions.items()]
-    references = [{"id": ex["id"], "answers": ex["answers"]} for ex in ood_dataset["validation"]]
+    references = [{"id": ex["id"], "answers": ex["answers"]} for ex in sd_dataset["validation"]]
     # metric.compute(predictions=formatted_predictions, references=references)
 
     pickle.dump(formatted_predictions, open(os.path.join(args.save_folder, 'preds.p'), 'wb'))
