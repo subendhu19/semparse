@@ -156,6 +156,7 @@ if __name__ == "__main__":
     targs = TrainingArguments(
         f"{args.save_folder}/{model_name}-checkpoints",
         evaluation_strategy="epoch",
+        save_strategy="epoch",
         learning_rate=2e-5,
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
