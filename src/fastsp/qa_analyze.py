@@ -6,7 +6,7 @@ from transformers import AutoTokenizer, AutoModelForQuestionAnswering, TrainingA
 import random
 from src.fastsp.utils import slot_descriptions
 
-from src.fastsp.qa_train import tag_entity_name_dict
+from src.fastsp.train import entity_name_dict
 import collections
 import numpy as np
 from datasets import load_metric, Dataset
@@ -223,7 +223,7 @@ if __name__ == "__main__":
         text_so_far = ""
         context = ''.join([a['text'] for a in val_json[intent][i]['data']])
 
-        for ent in tag_entity_name_dict[intent]:
+        for ent in entity_name_dict[intent]:
             val_qa_data['question'].append(ent)
             val_qa_data['answers'].append({'answer_start': [0], 'text': [""]})
             val_qa_data['context'].append(context)

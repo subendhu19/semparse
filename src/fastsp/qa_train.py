@@ -11,22 +11,6 @@ import datasets
 random.seed(1100)
 
 
-tag_entity_name_dict = {
-    "PlayMusic": ["genre", "year", "sort", "service", "music item", "playlist", "album", "artist", "track", "none"],
-    "RateBook": ["object name", "rating unit", "best rating", "rating value", "object type", "object select",
-                 "object part of series type", "none"],
-    "SearchCreativeWork": ["object name", "object type", "none"],
-    "GetWeather": ["state", "spatial relation", "condition description", "country", "timeRange", "city",
-                   "condition temperature", "current location", "geographic poi", "none"],
-    "BookRestaurant": ["state", "spatial relation", "party size number", "sort", "country", "timeRange",
-                       "restaurant type", "served dish", "restaurant name", "city", "cuisine", "poi", "facility",
-                       "party size description", "none"],
-    "SearchScreeningEvent": ["spatial relation", "object type", "timeRange", "movie name", "movie type",
-                             "location name", "object location type", "none"],
-    "AddToPlaylist": ["music item", "entity name", "playlist", "artist", "playlist owner", "none"]
-}
-
-
 pad_on_right = True
 use_descriptions = False
 max_length = 48
