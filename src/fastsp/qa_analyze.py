@@ -178,23 +178,12 @@ if __name__ == "__main__":
     if args.use_negative_examples:
         squad_v2 = True
 
-    ood_tokenized_datasets = ood_dataset.map(prepare_train_features, batched=True,
-                                             remove_columns=ood_dataset["train"].column_names)
-
-    sd_tokenized_datasets = sd_dataset.map(prepare_train_features, batched=True,
-                                           remove_columns=sd_dataset["train"].column_names)
-
     model = AutoModelForQuestionAnswering.from_pretrained(model_checkpoint)
 
     model_name = args.checkpoint_name
     targs = TrainingArguments(
         f"{args.save_folder}/{model_name}",
-        evaluation_strategy="epoch",
-        learning_rate=2e-5,
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
-        num_train_epochs=args.epochs,
-        weight_decay=0.01,
+        per_device_eval_batch_size=64,
         push_to_hub=False,
     )
 
@@ -203,9 +192,6 @@ if __name__ == "__main__":
     trainer = Trainer(
         model,
         targs,
-        train_dataset=ood_tokenized_datasets["train"],
-        eval_dataset=ood_tokenized_datasets["validation"],
-        data_collator=data_collator,
         tokenizer=tokenizer,
     )
 
