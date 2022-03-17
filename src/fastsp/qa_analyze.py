@@ -190,7 +190,6 @@ if __name__ == "__main__":
 
     parser.add_argument('--data_folder', type=str, default='/home/srongali/data/snips/raw')
     parser.add_argument('--save_folder', type=str, default='/mnt/nfs/scratch1/srongali/semparse/snips')
-    parser.add_argument('--checkpoint_name', type=str, default='bert-base-uncased-finetuned-squad')
 
     parser.add_argument('--held_out_intent', type=str, required=True)
     parser.add_argument('--train_held_out_intent', type=str)
@@ -259,7 +258,6 @@ if __name__ == "__main__":
 
     model = AutoModelForQuestionAnswering.from_pretrained(model_checkpoint)
 
-    model_name = args.checkpoint_name
     targs = TrainingArguments(
         f"{args.save_folder}/{model_name}",
         per_device_eval_batch_size=64,
