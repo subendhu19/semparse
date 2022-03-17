@@ -318,13 +318,13 @@ if __name__ == "__main__":
 
     for eid in range(len(metric_gold)):
 
-        for p in metric_preds:
-            if p in metric_gold:
+        for p in metric_preds[eid]:
+            if p in metric_gold[eid]:
                 precision_n += 1
             precision_d += 1
 
-        for p in metric_gold:
-            if p in metric_preds:
+        for p in metric_gold[eid]:
+            if p in metric_preds[eid]:
                 recall_n += 1
             recall_d += 1
 
