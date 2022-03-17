@@ -132,7 +132,8 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
                         {
                             "score": start_logits[start_index] + end_logits[end_index],
                             "text": context[start_char: end_char],
-                            "start_char": start_char
+                            "start_char": start_char,
+                            "end_char": end_char
                         }
                     )
 
@@ -153,6 +154,7 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
             original_predictions[example["original_id"]].append((example["question"],
                                                                  best_answer["text"],
                                                                  best_answer["start_char"],
+                                                                 best_answer["end_char"],
                                                                  best_answer["score"]))
         else:
             answer = best_answer["text"] if best_answer["score"] > min_null_score else ""
@@ -161,9 +163,27 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
             original_predictions[example["original_id"]].append((example["question"],
                                                                  answer,
                                                                  best_answer["start_char"],
+                                                                 best_answer["end_char"],
                                                                  ascore))
 
     return predictions, original_predictions
+
+
+def check_invalid(spans, span):
+    for cspan in spans:
+        if cspan[2] <= span[2] < cspan[3]:
+            return True
+        if cspan[2] < span[3] <= cspan[3]:
+            return True
+        if span[2] <= cspan[2] and span[3] >= cspan[3]:
+            return True
+        if span[0] == cspan[0]:
+            return True
+
+    if span[-1] < 0:
+        return True
+
+    return False
 
 
 if __name__ == "__main__":
@@ -275,7 +295,14 @@ if __name__ == "__main__":
         print(gold_entities[k])
         print()
         print('PRED: ')
-        for pred_ent in sorted(final_original_predictions[k], key=lambda x: x[-1], reverse=True):
+
+        greedy_decode = []
+        sorted_preds = sorted(final_original_predictions[k], key=lambda x: x[-1], reverse=True)
+        for sp in sorted_preds:
+            if check_invalid(greedy_decode, sp) is False:
+                greedy_decode.append(sp)
+
+        for pred_ent in greedy_decode:
             print(pred_ent)
         print()
 
