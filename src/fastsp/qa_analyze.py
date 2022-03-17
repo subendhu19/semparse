@@ -1,4 +1,3 @@
-import torch
 import os
 import argparse
 
@@ -6,14 +5,13 @@ from transformers import AutoTokenizer, AutoModelForQuestionAnswering, TrainingA
 
 import random
 from src.fastsp.utils import slot_descriptions
-import datasets
 
 from src.fastsp.qa_train import tag_entity_name_dict
 import collections
 from tqdm.auto import tqdm
 import numpy as np
 from datasets import load_metric, Dataset
-import pickle
+import statistics
 import json
 
 
@@ -289,6 +287,9 @@ if __name__ == "__main__":
         formatted_predictions = [{"id": k, "prediction_text": v} for k, v in final_predictions.items()]
 
     # metric.compute(predictions=formatted_predictions, references=references)
+    metric_gold = []
+    metric_preds = []
+
     for k in final_original_predictions:
         print('Example ID: {}'.format(k))
         print('GOLD: ')
@@ -304,8 +305,34 @@ if __name__ == "__main__":
 
         for pred_ent in greedy_decode:
             print(pred_ent)
+
+        metric_gold.append([(a[0], a[1]) for a in gold_entities[k]])
+        metric_preds.append([(a[0], a[1]) for a in greedy_decode])
+
         print()
 
+    precision_n = 0
+    precision_d = 0
+    recall_n = 0
+    recall_d = 0
+
+    for eid in range(len(metric_gold)):
+
+        for p in metric_preds:
+            if p in metric_gold:
+                precision_n += 1
+            precision_d += 1
+
+        for p in metric_gold:
+            if p in metric_preds:
+                recall_n += 1
+            recall_d += 1
+
+    precision = precision_n / precision_d * 100.0
+    recall = recall_n / recall_d * 100.0
+    print('Precision: {:.2f}'.format(precision))
+    print('Recall: {:.2f}'.format(recall))
+    print('F1: {:.2f}'.format(statistics.harmonic_mean([precision, recall])))
 
 
 
