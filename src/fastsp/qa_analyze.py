@@ -186,7 +186,7 @@ if __name__ == "__main__":
 
     example_id = 0
     original_id = 0
-    val_qa_data = {'question': [], 'answers': [], 'context': [], 'id': [], 'title': []}
+    val_qa_data = {'question': [], 'answers': [], 'context': [], 'id': [], 'title': [], 'original_id': []}
     gold_entities = {}
     for i in range(len(val_json[intent])):
         text_so_far = ""
