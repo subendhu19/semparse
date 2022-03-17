@@ -22,6 +22,7 @@ use_descriptions = False
 max_length = 48
 doc_stride = 16
 squad_v2 = False
+threshold = 0
 
 
 def prepare_validation_features(examples):
@@ -178,7 +179,7 @@ def check_invalid(spans, span):
         if span[0] == cspan[0]:
             return True
 
-    if span[-1] < 0:
+    if span[-1] < threshold:
         return True
 
     return False
@@ -195,10 +196,12 @@ if __name__ == "__main__":
     parser.add_argument('--held_out_intent', type=str, required=True)
     parser.add_argument('--use_descriptions', action='store_true')
     parser.add_argument('--use_negative_examples', action='store_true')
+    parser.add_argument('--score_threshold', type=int, default=0)
 
     args = parser.parse_args()
 
     intent = args.held_out_intent
+    threshold = args.score_threshold
 
     model_checkpoint = os.path.join(args.save_folder, args.checkpoint_name, 'checkpoint-500')
 
@@ -291,11 +294,11 @@ if __name__ == "__main__":
     metric_preds = []
 
     for k in final_original_predictions:
-        print('Example ID: {}'.format(k))
-        print('GOLD: ')
-        print(gold_entities[k])
-        print()
-        print('PRED: ')
+        # print('Example ID: {}'.format(k))
+        # print('GOLD: ')
+        # print(gold_entities[k])
+        # print()
+        # print('PRED: ')
 
         greedy_decode = []
         sorted_preds = sorted(final_original_predictions[k], key=lambda x: x[-1], reverse=True)
@@ -303,13 +306,13 @@ if __name__ == "__main__":
             if check_invalid(greedy_decode, sp) is False:
                 greedy_decode.append(sp)
 
-        for pred_ent in greedy_decode:
-            print(pred_ent)
+        # for pred_ent in greedy_decode:
+        #     print(pred_ent)
 
         metric_gold.append([(a[0], a[1]) for a in gold_entities[k]])
         metric_preds.append([(a[0], a[1]) for a in greedy_decode])
 
-        print()
+        # print()
 
     precision_n = 0
     precision_d = 0
