@@ -9,7 +9,7 @@ from src.fastsp.utils import slot_descriptions
 from src.fastsp.train import entity_name_dict
 import collections
 import numpy as np
-from datasets import load_metric, Dataset
+from datasets import Dataset
 import statistics
 import json
 
@@ -181,6 +181,9 @@ def check_invalid(spans, span):
     if span[-1] < threshold:
         return True
 
+    if span[1] == "":
+        return True
+
     return False
 
 
@@ -287,15 +290,6 @@ if __name__ == "__main__":
                                                                                validation_features,
                                                                                raw_predictions.predictions)
 
-    metric = load_metric("squad_v2" if squad_v2 else "squad")
-
-    if squad_v2:
-        formatted_predictions = [{"id": k, "prediction_text": v, "no_answer_probability": 0.0} for k, v in
-                                 final_predictions.items()]
-    else:
-        formatted_predictions = [{"id": k, "prediction_text": v} for k, v in final_predictions.items()]
-
-    # metric.compute(predictions=formatted_predictions, references=references)
     metric_gold = []
     metric_preds = []
 
