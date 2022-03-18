@@ -110,9 +110,11 @@ if __name__ == "__main__":
 
     parser.add_argument('--use_negative_examples', action='store_true')
 
+    parser.add_argument('--model_checkpoint', type=str, default='bert-base-uncased')
+
     args = parser.parse_args()
 
-    model_checkpoint = 'bert-base-uncased'
+    model_checkpoint = args.model_checkpoint
 
     folder_name = args.data_folder
     if args.use_negative_examples:
@@ -140,6 +142,9 @@ if __name__ == "__main__":
         model_name += '_desc'
     if args.use_negative_examples:
         model_name += '_neg'
+
+    if args.model_checkpoint != 'bert-base-uncased':
+        model_name += args.model_checkpoint.split('/')[-1]
 
     targs = TrainingArguments(
         f"{args.save_folder}/{model_name}-checkpoints",
