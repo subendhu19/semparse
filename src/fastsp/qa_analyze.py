@@ -200,6 +200,8 @@ if __name__ == "__main__":
     parser.add_argument('--use_negative_examples', action='store_true')
     parser.add_argument('--score_threshold', type=int, default=0)
 
+    parser.add_argument('--override_model_checkpoint', type=str)
+
     args = parser.parse_args()
 
     intent = args.held_out_intent
@@ -214,6 +216,9 @@ if __name__ == "__main__":
     model_name += '-best'
 
     model_checkpoint = os.path.join(args.save_folder, model_name)
+
+    if args.override_model_checkpoint:
+        model_checkpoint = args.override_model_checkpoint
 
     val_json = json.load(open(os.path.join(args.data_folder,
                                            'validate_{}.json'.format(intent)), 'rb'))
