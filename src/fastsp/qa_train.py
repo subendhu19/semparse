@@ -18,7 +18,7 @@ doc_stride = 16
 
 
 def prepare_train_features(examples):
-    slot_questions = [e.replace('_', ' ') for e in examples["question"]]
+    slot_questions = examples["question"]
 
     if use_descriptions:
         intents = examples["title"]
