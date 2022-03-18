@@ -114,8 +114,12 @@ if __name__ == "__main__":
 
     model_checkpoint = 'bert-base-uncased'
 
-    ood_dataset = datasets.load_from_disk(os.path.join(args.data_folder, args.held_out_intent, 'ood'))
-    sd_dataset = datasets.load_from_disk(os.path.join(args.data_folder, args.held_out_intent, 'sd'))
+    folder_name = args.data_folder
+    if args.use_negative_examples:
+        folder_name += "-neg"
+
+    ood_dataset = datasets.load_from_disk(os.path.join(folder_name, args.held_out_intent, 'ood'))
+    sd_dataset = datasets.load_from_disk(os.path.join(folder_name, args.held_out_intent, 'sd'))
 
     tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
