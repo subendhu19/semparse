@@ -31,7 +31,7 @@ tag_entity_name_dict = {
 
 
 class BaseScorer(torch.nn.Module):
-    def __init__(self, model_style):
+    def __init__(self, model_style, slot_vecs=None):
         super(BaseScorer, self).__init__()
         self.bert = BertModel.from_pretrained('bert-base-uncased')
         # self.bias = torch.nn.ParameterDict({i: torch.nn.Parameter(torch.rand(1, len(tag_entity_name_dict[i])))
@@ -42,23 +42,30 @@ class BaseScorer(torch.nn.Module):
             self.ff = torch.nn.Linear(2 * self.bert.config.hidden_size, 1)
         elif self.model_style == 'wdot':
             self.wdot = torch.nn.Bilinear(self.bert.config.hidden_size, self.bert.config.hidden_size, 1)
+        self.slot_vecs = slot_vecs
 
     def forward(self, inputs, c_intent, use_descriptions=False):
         outs = self.bert(**inputs)
 
-        slot_list = [s for s in tag_entity_name_dict[c_intent]]
-        if use_descriptions:
-            for i in range(len(slot_list)):
-                if slot_list[i] != "none":
-                    slot_list[i] += ' : ' + slot_descriptions[c_intent][slot_list[i]]
+        if self.slot_vecs is None:
+            slot_list = [s for s in tag_entity_name_dict[c_intent]]
+            if use_descriptions:
+                for i in range(len(slot_list)):
+                    if slot_list[i] != "none":
+                        slot_list[i] += ' : ' + slot_descriptions[c_intent][slot_list[i]]
 
-        slot_tensors = self.tokenizer(slot_list, return_tensors="pt", padding=True,
-                                      add_special_tokens=True).to(device=self.bert.device)
+            slot_tensors = self.tokenizer(slot_list, return_tensors="pt", padding=True,
+                                          add_special_tokens=True).to(device=self.bert.device)
 
-        slot_outs = self.bert(**slot_tensors)
+            slot_outs = self.bert(**slot_tensors)
+            slot_vectors = slot_outs['last_hidden_state'][:, 0, :]
+        else:
+            if use_descriptions:
+                slot_vectors = self.slot_vecs[c_intent]['desc'].to(self.device)
+            else:
+                slot_vectors = self.slot_vecs[c_intent]['no_desc'].to(self.device)
 
         token_level_outputs = outs['last_hidden_state']
-        slot_vectors = slot_outs['last_hidden_state'][:, 0, :]
 
         # mags = torch.clamp(torch.einsum('bp,r->bpr', torch.norm(token_level_outputs, dim=2),
         #                                 torch.norm(slot_vectors, dim=1)),
@@ -97,6 +104,8 @@ if __name__ == "__main__":
     parser.add_argument('--validate_every', type=int, default=1)
     parser.add_argument('--model_style', type=str, choices=['dot', 'ff', 'wdot'], default='dot')
 
+    parser.add_argument('--precompute_slotvecs', action='store_true')
+
     args = parser.parse_args()
 
     tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
@@ -122,7 +131,12 @@ if __name__ == "__main__":
     log_every = args.log_every
     device = "cuda:0"
 
-    model = BaseScorer(model_style=args.model_style).to(device)
+    slot_vectors = None
+    if args.precompute_slotvecs:
+        slot_vectors = pickle.load(open(os.path.join(args.data_folder, 'slot_vecs.p'), 'rb'))
+
+    model = BaseScorer(model_style=args.model_style,
+                       slot_vecs=slot_vectors).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=2e-5)
 
@@ -175,6 +189,8 @@ if __name__ == "__main__":
     ind_accuracies = [0]
     ood_accuracies = [0]
     patience_count = 0
+
+    model_name = args.model_style + '_pc' if args.precompute_slotvecs else args.model_style
 
     for epoch in range(epochs):
 
@@ -271,10 +287,10 @@ if __name__ == "__main__":
                 print('BEST SO FAR! Saving model...')
                 state_dict = {'model_state_dict': model.state_dict()}
                 if args.use_descriptions:
-                    save_path = os.path.join(save_folder, 'base_{}_wo_{}_desc_best.pt'.format(args.model_style,
+                    save_path = os.path.join(save_folder, 'base_{}_wo_{}_desc_best.pt'.format(model_name,
                                                                                               held_out_intent))
                 else:
-                    save_path = os.path.join(save_folder, 'base_{}_wo_{}_best.pt'.format(args.model_style,
+                    save_path = os.path.join(save_folder, 'base_{}_wo_{}_best.pt'.format(model_name,
                                                                                          held_out_intent))
                 torch.save(state_dict, save_path)
                 print('Best checkpoint saved to {}'.format(save_path), flush=True)
@@ -323,9 +339,9 @@ if __name__ == "__main__":
 
     state_dict = {'model_state_dict': model.state_dict()}
     if args.use_descriptions:
-        save_path = os.path.join(save_folder, 'base_{}_wo_{}_desc_latest.pt'.format(args.model_style, held_out_intent))
+        save_path = os.path.join(save_folder, 'base_{}_wo_{}_desc_latest.pt'.format(model_name, held_out_intent))
     else:
-        save_path = os.path.join(save_folder, 'base_{}_wo_{}_latest.pt'.format(args.model_style, held_out_intent))
+        save_path = os.path.join(save_folder, 'base_{}_wo_{}_latest.pt'.format(model_name, held_out_intent))
     torch.save(state_dict, save_path)
     print('Latest checkpoint saved to {}'.format(save_path), flush=True)
 

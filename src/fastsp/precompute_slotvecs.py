@@ -20,7 +20,7 @@ with torch.no_grad():
                                  add_special_tokens=True).to(device=model.device)
         slot_outs = model(**slot_tensors)
         slot_vectors = slot_outs['last_hidden_state'][:, 0, :]
-        slot_vecs[intent]['no_desc'] = slot_vectors.cpu().T
+        slot_vecs[intent]['no_desc'] = slot_vectors.cpu()
 
         # Descriptions
         slot_list = [s for s in tag_entity_name_dict[intent]]
@@ -31,6 +31,6 @@ with torch.no_grad():
                                  add_special_tokens=True).to(device=model.device)
         slot_outs = model(**slot_tensors)
         slot_vectors = slot_outs['last_hidden_state'][:, 0, :]
-        slot_vecs[intent]['desc'] = slot_vectors.cpu().T
+        slot_vecs[intent]['desc'] = slot_vectors.cpu()
 
 pickle.dump(slot_vecs, open('slot_vecs.p', 'wb'))
