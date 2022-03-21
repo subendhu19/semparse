@@ -61,9 +61,9 @@ class BaseScorer(torch.nn.Module):
             slot_vectors = slot_outs['last_hidden_state'][:, 0, :]
         else:
             if use_descriptions:
-                slot_vectors = self.slot_vecs[c_intent]['desc'].to(self.device)
+                slot_vectors = self.slot_vecs[c_intent]['desc'].to(self.bert.device)
             else:
-                slot_vectors = self.slot_vecs[c_intent]['no_desc'].to(self.device)
+                slot_vectors = self.slot_vecs[c_intent]['no_desc'].to(self.bert.device)
 
         token_level_outputs = outs['last_hidden_state']
 
