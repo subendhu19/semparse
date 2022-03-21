@@ -69,6 +69,8 @@ if __name__ == "__main__":
     parser.add_argument('--use_descriptions', action='store_true')
     parser.add_argument('--model_style', type=str, choices=['dot', 'ff', 'wdot'], default='dot')
 
+    parser.add_argument('--precompute_slotvecs', action='store_true')
+
     args = parser.parse_args()
 
     tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
@@ -91,14 +93,20 @@ if __name__ == "__main__":
     batch_size = args.batch_size
     device = "cuda:0"
 
-    model = BaseScorer(model_style=args.model_style).to(device)
+    slot_vectors = None
+    if args.precompute_slotvecs:
+        slot_vectors = pickle.load(open(os.path.join(args.data_folder, 'slot_vecs.p'), 'rb'))
 
+    model = BaseScorer(model_style=args.model_style,
+                       slot_vecs=slot_vectors).to(device)
+
+    model_name = args.model_style + '_pc' if args.precompute_slotvecs else args.model_style
     if args.use_descriptions:
         model.load_state_dict(torch.load(os.path.join(save_folder, 'base_{}_wo_{}_desc_best.pt'.
-                                                      format(args.model_style, held_out_intent)))['model_state_dict'])
+                                                      format(model_name, held_out_intent)))['model_state_dict'])
     else:
         model.load_state_dict(torch.load(os.path.join(save_folder, 'base_{}_wo_{}_best.pt'.
-                                                      format(args.model_style, held_out_intent)))['model_state_dict'])
+                                                      format(model_name, held_out_intent)))['model_state_dict'])
 
     val_processed = []
     for intent in [eval_intent]:
