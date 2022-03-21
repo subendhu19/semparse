@@ -140,7 +140,7 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
         else:
             # In the very rare edge case we have not a single non-null prediction, we create a fake prediction to avoid
             # failure.
-            best_answer = {"text": "", "score": 0.0}
+            best_answer = {"text": "", "score": 0.0, "start_char": 0, "end_char": 0}
 
         # Let's pick our final answer: the best one or the null answer (only for squad_v2)
 
