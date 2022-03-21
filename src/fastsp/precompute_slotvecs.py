@@ -33,4 +33,4 @@ with torch.no_grad():
         slot_vectors = slot_outs['last_hidden_state'][:, 0, :]
         slot_vecs[intent]['desc'] = slot_vectors.cpu().T
 
-pickle.dump(slot_vecs, 'slot_vecs.p')
+pickle.dump(slot_vecs, open('slot_vecs.p', 'wb'))
