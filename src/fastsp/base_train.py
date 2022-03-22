@@ -31,12 +31,12 @@ tag_entity_name_dict = {
 
 
 class BaseScorer(torch.nn.Module):
-    def __init__(self, model_style, slot_vecs=None):
+    def __init__(self, ckpt, model_style, slot_vecs=None):
         super(BaseScorer, self).__init__()
-        self.bert = BertModel.from_pretrained('bert-base-uncased')
+        self.bert = BertModel.from_pretrained(ckpt)
         # self.bias = torch.nn.ParameterDict({i: torch.nn.Parameter(torch.rand(1, len(tag_entity_name_dict[i])))
         #                                     for i in tag_entity_name_dict})
-        self.tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
+        self.tokenizer = BertTokenizerFast.from_pretrained(ckpt)
         self.model_style = model_style
         if self.model_style == 'ff':
             self.ff = torch.nn.Linear(2 * self.bert.config.hidden_size, 1)
@@ -105,10 +105,13 @@ if __name__ == "__main__":
     parser.add_argument('--model_style', type=str, choices=['dot', 'ff', 'wdot'], default='dot')
 
     parser.add_argument('--precompute_slotvecs', action='store_true')
+    parser.add_argument('--model_checkpoint', type=str, default='bert-base-uncased')
 
     args = parser.parse_args()
 
-    tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
+    model_checkpoint = args.model_checkpoint
+
+    tokenizer = BertTokenizerFast.from_pretrained(model_checkpoint)
 
     # Model params
     MAX_SEQ_LEN = 128
@@ -135,7 +138,8 @@ if __name__ == "__main__":
     if args.precompute_slotvecs:
         slot_vectors = pickle.load(open(os.path.join(args.data_folder, 'slot_vecs.p'), 'rb'))
 
-    model = BaseScorer(model_style=args.model_style,
+    model = BaseScorer(ckpt=model_checkpoint,
+                       model_style=args.model_style,
                        slot_vecs=slot_vectors).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=2e-5)
