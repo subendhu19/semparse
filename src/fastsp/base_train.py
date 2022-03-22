@@ -195,6 +195,7 @@ if __name__ == "__main__":
     patience_count = 0
 
     model_name = args.model_style + '_pc' if args.precompute_slotvecs else args.model_style
+    model_name = model_name + '_{}'.format(model_checkpoint) if model_checkpoint != 'bert-base-uncased' else model_name
 
     for epoch in range(epochs):
 

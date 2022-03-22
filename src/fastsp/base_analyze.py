@@ -105,6 +105,8 @@ if __name__ == "__main__":
                        slot_vecs=slot_vectors).to(device)
 
     model_name = args.model_style + '_pc' if args.precompute_slotvecs else args.model_style
+    model_name = model_name + '_{}'.format(model_checkpoint) if model_checkpoint != 'bert-base-uncased' else model_name
+
     if args.use_descriptions:
         model.load_state_dict(torch.load(os.path.join(save_folder, 'base_{}_wo_{}_desc_best.pt'.
                                                       format(model_name, held_out_intent)))['model_state_dict'])
