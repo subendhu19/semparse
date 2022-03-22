@@ -3,7 +3,7 @@ import os
 import pickle
 import argparse
 
-from transformers import BertTokenizerFast
+from transformers import AutoTokenizer
 
 import random
 from src.fastsp.base_train import BaseScorer, tag_entity_name_dict
@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     model_checkpoint = args.model_checkpoint
 
-    tokenizer = BertTokenizerFast.from_pretrained(model_checkpoint)
+    tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
     # Model params
     MAX_SEQ_LEN = 128

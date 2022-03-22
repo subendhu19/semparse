@@ -4,7 +4,7 @@ import pickle
 import argparse
 from datetime import datetime
 
-from transformers import BertTokenizerFast, BertModel
+from transformers import AutoTokenizer, AutoModel
 
 import random
 from random import shuffle
@@ -33,10 +33,10 @@ tag_entity_name_dict = {
 class BaseScorer(torch.nn.Module):
     def __init__(self, ckpt, model_style, slot_vecs=None):
         super(BaseScorer, self).__init__()
-        self.bert = BertModel.from_pretrained(ckpt)
+        self.bert = AutoModel.from_pretrained(ckpt)
         # self.bias = torch.nn.ParameterDict({i: torch.nn.Parameter(torch.rand(1, len(tag_entity_name_dict[i])))
         #                                     for i in tag_entity_name_dict})
-        self.tokenizer = BertTokenizerFast.from_pretrained(ckpt)
+        self.tokenizer = AutoTokenizer.from_pretrained(ckpt)
         self.model_style = model_style
         if self.model_style == 'ff':
             self.ff = torch.nn.Linear(2 * self.bert.config.hidden_size, 1)
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
     model_checkpoint = args.model_checkpoint
 
-    tokenizer = BertTokenizerFast.from_pretrained(model_checkpoint)
+    tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
     # Model params
     MAX_SEQ_LEN = 128
