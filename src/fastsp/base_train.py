@@ -176,9 +176,6 @@ if __name__ == "__main__":
 
     CE = torch.nn.CrossEntropyLoss()
 
-    print('Begin Training...', flush=True)
-    model.train()
-
     start_time = datetime.now()
 
     val_processed_1 = process_data_with_tags(val_data, train_intents, tokenizer, batch_size)
@@ -194,6 +191,9 @@ if __name__ == "__main__":
 
     model_name = args.model_style + '_pc' if args.precompute_slotvecs else args.model_style
     model_name = model_name + '_{}'.format(model_checkpoint) if model_checkpoint != 'bert-base-uncased' else model_name
+
+    print('Begin Training...', flush=True)
+    model.train()
 
     for epoch in range(epochs):
         shuffle(train_processed)
