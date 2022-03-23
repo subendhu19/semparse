@@ -6,7 +6,7 @@ import argparse
 from transformers import AutoTokenizer
 
 import random
-from src.fastsp.base_train import BaseScorer, tag_entity_name_dict
+from src.fastsp.base_train import BaseScorer, tag_entity_name_dict, process_data_with_tags
 import statistics
 
 random.seed(1100)
@@ -114,23 +114,7 @@ if __name__ == "__main__":
         model.load_state_dict(torch.load(os.path.join(save_folder, 'base_{}_wo_{}_best.pt'.
                                                       format(model_name, held_out_intent)))['model_state_dict'])
 
-    val_processed = []
-    for intent in [eval_intent]:
-        all_examples = []
-        for i in range(len(val_data[intent]['utterances'])):
-            utt = val_data[intent]['utterances'][i]
-            utt_tok = tokenizer(utt, return_tensors="pt", add_special_tokens=False)
-            utt_ids = utt_tok.word_ids()
-
-            ti = val_data[intent]['tag_indices'][i]
-
-            nti = [ti[a] for a in utt_ids]
-
-            all_examples.append([utt, nti])
-
-        for i in range(0, len(all_examples), batch_size):
-            mini_batch = all_examples[i:i + batch_size]
-            val_processed.append((mini_batch, intent))
+    val_processed = process_data_with_tags(val_data, [eval_intent], tokenizer, batch_size)
 
     model.eval()
 

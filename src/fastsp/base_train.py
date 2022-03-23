@@ -85,6 +85,34 @@ class BaseScorer(torch.nn.Module):
         return ret
 
 
+def process_data_with_tags(split, intent_list, tokenizer, batch_size):
+    processed = []
+    for intent in intent_list:
+        all_examples = []
+        for i in range(len(split[intent]['utterances'])):
+            utt = split[intent]['utterances'][i]
+            tags = split[intent]['tag_indices'][i]
+            tag_offsets = torch.tensor(split[intent]['tag_offsets'][i])
+            t_utt = tokenizer(utt, return_tensors="pt", add_special_tokens=False, return_offsets_mapping=True)
+            new_offsets = t_utt['offset_mapping'][0]
+            new_tags = []
+            for k in range(new_offsets.shape[0]):
+                idx = 0
+                while new_offsets[k][0] >= tag_offsets[idx][0]:
+                    idx += 1
+                    if idx == len(tag_offsets):
+                        break
+                new_tags.append(tags[idx - 1])
+
+            all_examples.append([utt, new_tags])
+
+        for i in range(0, len(all_examples), batch_size):
+            mini_batch = all_examples[i:i + batch_size]
+            processed.append((mini_batch, intent))
+
+    return processed
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Training models for fast semantic parsing")
@@ -153,41 +181,11 @@ if __name__ == "__main__":
 
     start_time = datetime.now()
 
-    val_processed_1 = []
-    for intent in train_intents:
-        all_examples = []
-        for i in range(len(val_data[intent]['utterances'])):
-            utt = val_data[intent]['utterances'][i]
-            utt_tok = tokenizer(utt, return_tensors="pt", add_special_tokens=False)
-            utt_ids = utt_tok.word_ids()
+    val_processed_1 = process_data_with_tags(val_data, train_intents, tokenizer, batch_size)
 
-            ti = val_data[intent]['tag_indices'][i]
+    val_processed_2 = process_data_with_tags(val_data, [held_out_intent], tokenizer, batch_size)
 
-            nti = [ti[a] for a in utt_ids]
-
-            all_examples.append([utt, nti])
-
-        for i in range(0, len(all_examples), batch_size):
-            mini_batch = all_examples[i:i + batch_size]
-            val_processed_1.append((mini_batch, intent))
-
-    val_processed_2 = []
-    for intent in [held_out_intent]:
-        all_examples = []
-        for i in range(len(val_data[intent]['utterances'])):
-            utt = val_data[intent]['utterances'][i]
-            utt_tok = tokenizer(utt, return_tensors="pt", add_special_tokens=False)
-            utt_ids = utt_tok.word_ids()
-
-            ti = val_data[intent]['tag_indices'][i]
-
-            nti = [ti[a] for a in utt_ids]
-
-            all_examples.append([utt, nti])
-
-        for i in range(0, len(all_examples), batch_size):
-            mini_batch = all_examples[i:i + batch_size]
-            val_processed_2.append((mini_batch, intent))
+    train_processed = process_data_with_tags(train_data, train_intents, tokenizer, batch_size)
 
     # Training metrics
     ind_accuracies = [0]
@@ -198,28 +196,6 @@ if __name__ == "__main__":
     model_name = model_name + '_{}'.format(model_checkpoint) if model_checkpoint != 'bert-base-uncased' else model_name
 
     for epoch in range(epochs):
-
-        train_processed = []
-        for intent in train_intents:
-            all_examples = []
-            for i in range(len(train_data[intent]['utterances'])):
-
-                utt = train_data[intent]['utterances'][i]
-                utt_tok = tokenizer(utt, return_tensors="pt", add_special_tokens=False)
-                utt_ids = utt_tok.word_ids()
-
-                ti = train_data[intent]['tag_indices'][i]
-
-                nti = [ti[a] for a in utt_ids]
-
-                all_examples.append([utt, nti])
-
-            shuffle(all_examples)
-
-            for i in range(0, len(all_examples), batch_size):
-                mini_batch = all_examples[i:i + batch_size]
-                train_processed.append((mini_batch, intent))
-
         shuffle(train_processed)
 
         update = 0
