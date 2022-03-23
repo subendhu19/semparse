@@ -66,7 +66,7 @@ class BaseScorer(torch.nn.Module):
                                               add_special_tokens=False).to(device=self.plm.device)
 
                 slot_outs = self.plm(**slot_tensors)
-                slot_vectors = torch.max(slot_outs['last_hidden_state'], dim=1)[0]
+                slot_vectors = mean_pooling(slot_outs, slot_tensors['attention_mask'])
         else:
             if use_descriptions:
                 slot_vectors = self.slot_vecs[c_intent]['desc'].to(self.plm.device)
@@ -119,6 +119,12 @@ def process_data_with_tags(split, intent_list, tokenizer, batch_size):
             processed.append((mini_batch, intent))
 
     return processed
+
+
+def mean_pooling(model_output, attention_mask):
+    token_embeddings = model_output[0]
+    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 
 if __name__ == "__main__":
