@@ -33,19 +33,20 @@ tag_entity_name_dict = {
 class BaseScorer(torch.nn.Module):
     def __init__(self, ckpt, model_style, slot_vecs=None):
         super(BaseScorer, self).__init__()
-        self.bert = AutoModel.from_pretrained(ckpt)
+        self.plm = AutoModel.from_pretrained(ckpt)
+        self.ckpt = ckpt
         # self.bias = torch.nn.ParameterDict({i: torch.nn.Parameter(torch.rand(1, len(tag_entity_name_dict[i])))
         #                                     for i in tag_entity_name_dict})
         self.tokenizer = AutoTokenizer.from_pretrained(ckpt)
         self.model_style = model_style
         if self.model_style == 'ff':
-            self.ff = torch.nn.Linear(2 * self.bert.config.hidden_size, 1)
+            self.ff = torch.nn.Linear(2 * self.plm.config.hidden_size, 1)
         elif self.model_style == 'wdot':
-            self.wdot = torch.nn.Bilinear(self.bert.config.hidden_size, self.bert.config.hidden_size, 1)
+            self.wdot = torch.nn.Bilinear(self.plm.config.hidden_size, self.plm.config.hidden_size, 1)
         self.slot_vecs = slot_vecs
 
     def forward(self, inputs, c_intent, use_descriptions=False):
-        outs = self.bert(**inputs)
+        outs = self.plm(**inputs)
 
         if self.slot_vecs is None:
             slot_list = [s for s in tag_entity_name_dict[c_intent]]
@@ -54,16 +55,23 @@ class BaseScorer(torch.nn.Module):
                     if slot_list[i] != "none":
                         slot_list[i] += ' : ' + slot_descriptions[c_intent][slot_list[i]]
 
-            slot_tensors = self.tokenizer(slot_list, return_tensors="pt", padding=True,
-                                          add_special_tokens=True).to(device=self.bert.device)
+            if self.ckpt == 'bert-base-uncased':
+                slot_tensors = self.tokenizer(slot_list, return_tensors="pt", padding=True,
+                                              add_special_tokens=True).to(device=self.plm.device)
 
-            slot_outs = self.bert(**slot_tensors)
-            slot_vectors = slot_outs['last_hidden_state'][:, 0, :]
+                slot_outs = self.plm(**slot_tensors)
+                slot_vectors = slot_outs['last_hidden_state'][:, 0, :]
+            else:
+                slot_tensors = self.tokenizer(slot_list, return_tensors="pt", padding=True,
+                                              add_special_tokens=False).to(device=self.plm.device)
+
+                slot_outs = self.plm(**slot_tensors)
+                slot_vectors = torch.max(slot_outs['last_hidden_state'], dim=1)[0]
         else:
             if use_descriptions:
-                slot_vectors = self.slot_vecs[c_intent]['desc'].to(self.bert.device)
+                slot_vectors = self.slot_vecs[c_intent]['desc'].to(self.plm.device)
             else:
-                slot_vectors = self.slot_vecs[c_intent]['no_desc'].to(self.bert.device)
+                slot_vectors = self.slot_vecs[c_intent]['no_desc'].to(self.plm.device)
 
         token_level_outputs = outs['last_hidden_state']
 
