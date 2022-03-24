@@ -16,9 +16,22 @@ use_descriptions = False
 max_length = 48
 doc_stride = 16
 
+pose_question = False
+
+
+def question_prefix(slot_val):
+    if slot_val in ['artist', 'playlist owner']:
+        return 'who is the '
+    else:
+        return 'what is the '
+
 
 def prepare_train_features(examples):
     slot_questions = examples["question"]
+
+    if pose_question:
+        mod_slot_questions = [question_prefix(s) + s for s in slot_questions]
+        slot_questions = mod_slot_questions
 
     if use_descriptions:
         intents = examples["title"]
@@ -112,9 +125,12 @@ if __name__ == "__main__":
 
     parser.add_argument('--model_checkpoint', type=str, default='bert-base-uncased')
 
+    parser.add_argument('--pose_question', action='store_true')
+
     args = parser.parse_args()
 
     model_checkpoint = args.model_checkpoint
+    pose_question = args.pose_question
 
     folder_name = args.data_folder
     if args.use_negative_examples:
@@ -142,6 +158,8 @@ if __name__ == "__main__":
         model_name += '_desc'
     if args.use_negative_examples:
         model_name += '_neg'
+    if args.pose_question:
+        model_name += '_pq'
 
     if args.model_checkpoint != 'bert-base-uncased':
         model_name += args.model_checkpoint.split('/')[-1]

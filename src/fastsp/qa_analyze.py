@@ -7,6 +7,7 @@ import random
 from src.fastsp.utils import slot_descriptions
 
 from src.fastsp.train import entity_name_dict
+from src.fastsp.qa_train import question_prefix
 import collections
 import numpy as np
 from datasets import Dataset
@@ -23,9 +24,15 @@ doc_stride = 16
 squad_v2 = False
 threshold = 0
 
+pose_question = False
+
 
 def prepare_validation_features(examples):
     slot_questions = examples["question"]
+
+    if pose_question:
+        mod_slot_questions = [question_prefix(s) + s for s in slot_questions]
+        slot_questions = mod_slot_questions
 
     if use_descriptions:
         intents = examples["title"]
@@ -202,17 +209,23 @@ if __name__ == "__main__":
 
     parser.add_argument('--override_model_checkpoint', type=str)
 
+    parser.add_argument('--pose_question', action='store_true')
+
     args = parser.parse_args()
 
     intent = args.held_out_intent
     train_intent = args.train_held_out_intent if args.train_held_out_intent else intent
     threshold = args.score_threshold
 
+    pose_question = args.pose_question
+
     model_name = 'qa_wo_{}'.format(train_intent)
     if args.use_descriptions:
         model_name += '_desc'
     if args.use_negative_examples:
         model_name += '_neg'
+    if args.pose_question:
+        model_name += '_pq'
     model_name += '-best'
 
     model_checkpoint = os.path.join(args.save_folder, model_name)
