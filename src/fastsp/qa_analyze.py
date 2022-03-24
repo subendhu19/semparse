@@ -29,14 +29,15 @@ pose_question = False
 
 def prepare_validation_features(examples):
     slot_questions = examples["question"]
+    og_slot_questions = [a for a in slot_questions]
 
     if pose_question:
-        mod_slot_questions = [question_prefix(s) + s for s in slot_questions]
+        mod_slot_questions = [question_prefix(s) + s for s in og_slot_questions]
         slot_questions = mod_slot_questions
 
     if use_descriptions:
         intents = examples["title"]
-        descriptions = [slot_descriptions[intents[i]][slot_questions[i]] for i in range(len(slot_questions))]
+        descriptions = [slot_descriptions[intents[i]][og_slot_questions[i]] for i in range(len(og_slot_questions))]
         mod_slot_questions = [slot_questions[i] + ' : ' + descriptions[i] for i in range(len(slot_questions))]
         slot_questions = mod_slot_questions
 
