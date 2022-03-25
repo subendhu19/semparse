@@ -110,7 +110,7 @@ if __name__ == "__main__":
 
     folder_name = args.data_folder
 
-    domains = ['messaging', 'music', 'event', 'navigation', 'reminders', 'alarm', 'timer', 'weather']
+    domains = ['messaging', 'music', 'event', 'navigation', 'reminder', 'alarm', 'timer', 'weather']
 
     train_domains = [d for d in domains if d != args.held_out_domain]
     train_datasets = {}
