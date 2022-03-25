@@ -122,10 +122,6 @@ if __name__ == "__main__":
 
     tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
-    if args.use_descriptions:
-        max_length = 64
-        use_descriptions = True
-
     final_dataset = {'train': [], 'test': [], 'eval': []}
 
     d_train_neg_subsampled = {}
