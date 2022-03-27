@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--held_out_domain', type=str, required=True)
 
-    parser.add_argument('--epochs', type=int, default=5)
+    parser.add_argument('--epochs', type=int, default=3)
     parser.add_argument('--batch_size', type=int, default=64)
 
     parser.add_argument('--use_negative_examples', action='store_true')
@@ -156,8 +156,10 @@ if __name__ == "__main__":
 
     targs = TrainingArguments(
         f"{args.save_folder}/{model_name}-checkpoints",
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
+        evaluation_strategy="steps",
+        eval_steps=1000,
+        save_strategy="steps",
+        save_steps=1000,
         learning_rate=2e-5,
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
