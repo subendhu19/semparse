@@ -133,6 +133,7 @@ if __name__ == "__main__":
                 d_len = len(d_neg_full)
                 max_ind = int(args.neg_ex_pct * d_len)
                 d_neg_sub = d_neg_full.filter(lambda ex, ind: ind < max_ind, with_indices=True)
+                d_neg_sub = d_neg_sub.cast(train_datasets[d][split].features)
                 d_train_neg_subsampled[d][split] = d_neg_sub
 
     for split in final_dataset:
