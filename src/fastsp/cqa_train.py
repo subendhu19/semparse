@@ -133,12 +133,6 @@ if __name__ == "__main__":
                 d_len = len(d_neg_full)
                 max_ind = int(args.neg_ex_pct * d_len)
                 d_neg_sub = d_neg_full.filter(lambda ex, ind: ind < max_ind, with_indices=True)
-
-                dneg_newf = d_neg_sub.features.copy()
-                dneg_newf['answers']['answer_start'] = Sequence(Value('int64'))
-                dneg_newf['answers']['text'] = Sequence(Value('string'))
-
-                d_neg_sub = d_neg_sub.cast(dneg_newf)
                 d_train_neg_subsampled[d][split] = d_neg_sub
 
     for split in final_dataset:
