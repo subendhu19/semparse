@@ -281,25 +281,25 @@ if __name__ == "__main__":
     metric_preds = []
 
     for k in final_original_predictions:
-        print('Example ID: {}'.format(k))
-        print('GOLD: ')
-        print(gold_entities[k])
-        print()
-        print('PRED: ')
+        # print('Example ID: {}'.format(k))
+        # print('GOLD: ')
+        # print(gold_entities[k])
+        # print()
+        # print('PRED: ')
 
         greedy_decode = []
         sorted_preds = sorted(final_original_predictions[k], key=lambda x: x[-1], reverse=True)
-        for pred_ent in sorted_preds:
-            print(pred_ent)
-        print()
+        # for pred_ent in sorted_preds:
+        #     print(pred_ent)
+        # print()
         for sp in sorted_preds:
             if check_invalid(greedy_decode, sp) is False:
                 greedy_decode.append(sp)
 
-        print('DECODED: ')
-        for pred_ent in greedy_decode:
-            print(pred_ent)
-        print()
+        # print('DECODED: ')
+        # for pred_ent in greedy_decode:
+        #     print(pred_ent)
+        # print()
 
         metric_gold.append([(a[0], a[1]) for a in gold_entities[k]])
         metric_preds.append([(a[0], a[1]) for a in greedy_decode])
