@@ -1,11 +1,12 @@
 import os
 import argparse
 
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering, TrainingArguments, Trainer, default_data_collator
+from transformers import AutoTokenizer, AutoModelForQuestionAnswering, TrainingArguments, Trainer, \
+    default_data_collator, EarlyStoppingCallback
 
 import random
 import datasets
-from datasets import concatenate_datasets, Sequence, Value
+from datasets import concatenate_datasets
 
 
 random.seed(1100)
@@ -98,6 +99,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--epochs', type=int, default=3)
     parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--patience', type=int, default=3)
 
     parser.add_argument('--use_negative_examples', action='store_true')
     parser.add_argument('--neg_ex_pct', type=float, default=0.05)
@@ -166,7 +168,8 @@ if __name__ == "__main__":
         num_train_epochs=args.epochs,
         weight_decay=0.01,
         push_to_hub=False,
-        load_best_model_at_end=True
+        load_best_model_at_end=True,
+        save_total_limit=5
     )
 
     data_collator = default_data_collator
@@ -178,6 +181,7 @@ if __name__ == "__main__":
         eval_dataset=tokenized_datasets["eval"],
         data_collator=data_collator,
         tokenizer=tokenizer,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=args.patience)]
     )
 
     trainer.train()
