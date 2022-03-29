@@ -304,7 +304,8 @@ if __name__ == "__main__":
         if args.log_preds:
             print('Example ID: {}'.format(k), file=outf)
             print('GOLD: ', file=outf)
-            print(gold_entities[k], file=outf)
+            for ent in gold_entities[k]:
+                print(ent, file=outf)
             print('', file=outf)
             print('PRED: ', file=outf)
 
