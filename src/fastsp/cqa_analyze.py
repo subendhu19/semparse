@@ -313,7 +313,7 @@ if __name__ == "__main__":
                 print(pred_ent, file=outf)
             print('', file=outf)
 
-            print('DECODED: ')
+            print('DECODED: ', file=outf)
             for pred_ent in greedy_decode:
                 print(pred_ent, file=outf)
             print('', file=outf)
