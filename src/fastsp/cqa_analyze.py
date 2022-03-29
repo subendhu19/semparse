@@ -127,7 +127,7 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
                     )
 
         if len(valid_answers) > 0:
-            best_answers = sorted(valid_answers, key=lambda x: x["score"], reverse=True)[:5]
+            best_answers = sorted(valid_answers, key=lambda x: x["score"], reverse=True)[:1]
         else:
             # In the very rare edge case we have not a single non-null prediction, we create a fake prediction to avoid
             # failure.
