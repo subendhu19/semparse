@@ -127,11 +127,11 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
                     )
 
         if len(valid_answers) > 0:
-            best_answer = sorted(valid_answers, key=lambda x: x["score"], reverse=True)[0]
+            best_answers = sorted(valid_answers, key=lambda x: x["score"], reverse=True)[:5]
         else:
             # In the very rare edge case we have not a single non-null prediction, we create a fake prediction to avoid
             # failure.
-            best_answer = {"text": "", "score": 0.0, "start_char": 0, "end_char": 0}
+            best_answers = [{"text": "", "score": 0.0, "start_char": 0, "end_char": 0}]
 
         # Let's pick our final answer: the best one or the null answer (only for squad_v2)
 
@@ -139,21 +139,27 @@ def postprocess_qa_predictions(examples, features, raw_predictions, n_best_size=
             original_predictions[example["original_id"]] = []
 
         if not squad_v2:
-            predictions[example["id"]] = best_answer["text"]
-            original_predictions[example["original_id"]].append((example["question"],
-                                                                 best_answer["text"],
-                                                                 best_answer["start_char"],
-                                                                 best_answer["end_char"],
-                                                                 best_answer["score"]))
+            predictions[example["id"]] = best_answers[0]["text"]
         else:
-            answer = best_answer["text"] if best_answer["score"] > min_null_score else ""
-            ascore = best_answer["score"] if best_answer["score"] > min_null_score else min_null_score
-            predictions[example["id"]] = answer
-            original_predictions[example["original_id"]].append((example["question"],
-                                                                 answer,
-                                                                 best_answer["start_char"],
-                                                                 best_answer["end_char"],
-                                                                 ascore))
+            predictions[example["id"]] = best_answers[0]["text"] if best_answers[0]["score"] > min_null_score else ""
+
+        for best_answer in best_answers:
+            if not squad_v2:
+                predictions[example["id"]] = best_answer["text"]
+                original_predictions[example["original_id"]].append((example["question"],
+                                                                     best_answer["text"],
+                                                                     best_answer["start_char"],
+                                                                     best_answer["end_char"],
+                                                                     best_answer["score"]))
+            else:
+                answer = best_answer["text"] if best_answer["score"] > min_null_score else ""
+                ascore = best_answer["score"] if best_answer["score"] > min_null_score else min_null_score
+                predictions[example["id"]] = answer
+                original_predictions[example["original_id"]].append((example["question"],
+                                                                     answer,
+                                                                     best_answer["start_char"],
+                                                                     best_answer["end_char"],
+                                                                     ascore))
 
     return predictions, original_predictions
 
@@ -195,6 +201,7 @@ if __name__ == "__main__":
     parser.add_argument('--neg_ex_pct', type=float, default=0.05)
 
     parser.add_argument('--override_model_checkpoint', type=str)
+    parser.add_argument('--log_preds', action='store_true')
 
     args = parser.parse_args()
 
@@ -280,29 +287,35 @@ if __name__ == "__main__":
     metric_gold = []
     metric_preds = []
 
-    for k in final_original_predictions:
-        # print('Example ID: {}'.format(k))
-        # print('GOLD: ')
-        # print(gold_entities[k])
-        # print()
-        # print('PRED: ')
+    if args.log_preds:
+        outf = open(os.path.join(args.save_folder, '{}-{}-preds.txt'.format(domain, model_name)), 'w')
 
+    for k in final_original_predictions:
         greedy_decode = []
         sorted_preds = sorted(final_original_predictions[k], key=lambda x: x[-1], reverse=True)
-        # for pred_ent in sorted_preds:
-        #     print(pred_ent)
-        # print()
+
         for sp in sorted_preds:
             if check_invalid(greedy_decode, sp) is False:
                 greedy_decode.append(sp)
 
-        # print('DECODED: ')
-        # for pred_ent in greedy_decode:
-        #     print(pred_ent)
-        # print()
-
         metric_gold.append([(a[0], a[1]) for a in gold_entities[k]])
         metric_preds.append([(a[0], a[1]) for a in greedy_decode])
+
+        if args.log_preds:
+            print('Example ID: {}'.format(k), file=outf)
+            print('GOLD: ', file=outf)
+            print(gold_entities[k], file=outf)
+            print('', file=outf)
+            print('PRED: ', file=outf)
+
+            for pred_ent in sorted_preds:
+                print(pred_ent, file=outf)
+            print('', file=outf)
+
+            print('DECODED: ')
+            for pred_ent in greedy_decode:
+                print(pred_ent, file=outf)
+            print('', file=outf)
 
     precision_n = 0
     precision_d = 0
