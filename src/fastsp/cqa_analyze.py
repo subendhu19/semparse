@@ -19,6 +19,8 @@ max_length = 48
 doc_stride = 16
 squad_v2 = False
 threshold = 0
+allowed_ents = {}
+domain = ""
 
 
 def prepare_validation_features(examples):
@@ -170,6 +172,12 @@ def check_invalid(spans, span):
             return True
         if cspan[2] < span[2] <= cspan[3] < span[3]:
             return True
+        if span[1] == cspan[1]:
+            if span[0] not in allowed_ents[domain]:
+                return True
+            else:
+                if cspan[0] not in allowed_ents[domain][span[0]]:
+                    return True
 
     if span[-1] < threshold:
         return True
@@ -221,6 +229,7 @@ if __name__ == "__main__":
 
     unprocessed_data = pickle.load(open(os.path.join(args.data_folder, 'unprocessed.p'), 'rb'))
     schema = pickle.load(open(os.path.join(args.data_folder, 'schema.p'), 'rb'))
+    allowed_ents = pickle.load(open(os.path.join(args.data_folder, 'allowed_ents.p'), 'rb'))
 
     example_id = 0
     original_id = 0
@@ -229,6 +238,9 @@ if __name__ == "__main__":
     for i in range(len(unprocessed_data['test'][domain])):
 
         context = unprocessed_data['test'][domain][i][0][1]
+        lf = unprocessed_data['test'][domain][i][0][2]
+        if '[IN:UNSUPPORTED_' in lf:
+            continue
 
         for ent in schema[domain]['intents'] + schema[domain]['slots']:
             eval_qa_data['question'].append(get_question(ent))
