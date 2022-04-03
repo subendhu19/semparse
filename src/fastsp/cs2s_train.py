@@ -142,9 +142,9 @@ class CustomSeq2Seq(nn.Module):
 
             fixed_scores[:, :, :3] = torch.einsum('abc, dc -> abd', decoder_output, fix_spl_embeddings)
 
-            final_scores = torch.cat((fixed_scores, tag_target_scores), dim=2)[:, :, :-1]
+            final_scores = torch.cat((fixed_scores, tag_target_scores), dim=2)[:, :-1, :]
 
-            target_y = target[:, :, 1:]
+            target_y = target[:, 1:]
 
             loss = self.loss(final_scores.contiguous().view(-1, final_scores.shape[-1]),
                              target_y.contiguous().view(-1))
