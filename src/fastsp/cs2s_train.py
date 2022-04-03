@@ -122,7 +122,7 @@ class CustomSeq2Seq(nn.Module):
                                           tgt_mask=subsequent_mask(target.size(1)).long().to(device=self.device),
                                           tgt_key_padding_mask=target_mask,
                                           memory=enc_hidden_states,
-                                          memory_mask=full_mask(target.size(1), inputs.size(1)),
+                                          memory_mask=full_mask(target.size(1), inputs.size(1)).to(device=self.device),
                                           memory_key_padding_mask=inputs['attention_mask'].float())
 
             tag_target_scores = torch.einsum('abc, dc -> abd', decoder_output, tag_embeddings)
