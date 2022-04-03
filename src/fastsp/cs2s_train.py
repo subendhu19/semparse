@@ -119,7 +119,7 @@ class CustomSeq2Seq(nn.Module):
             pos_target_embeddings = self.position(target_embeddings)
 
             decoder_output = self.decoder(tgt=pos_target_embeddings,
-                                          tgt_mask=subsequent_mask(target.size(1)).long().to(device=self.device),
+                                          tgt_mask=subsequent_mask(target.size(1)).to(device=self.device),
                                           tgt_key_padding_mask=target_mask,
                                           memory=enc_hidden_states,
                                           memory_mask=full_mask(target.size(1),
@@ -249,7 +249,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
                                                                          encoder_output.size(1)).to(
                                                        device=cur_model.device),
                                                    memory_key_padding_mask=inp['attention_mask'].float(),
-                                                   tgt_mask=subsequent_mask(ys.size(1)).long().to(device=
+                                                   tgt_mask=subsequent_mask(ys.size(1)).to(device=
                                                                                                   cur_model.device))
 
                 tag_target_scores = torch.einsum('ac, dc -> ad', decoder_output[:, -1], tag_embeddings)
