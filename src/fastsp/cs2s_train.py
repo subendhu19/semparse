@@ -120,11 +120,11 @@ class CustomSeq2Seq(nn.Module):
 
             decoder_output = self.decoder(tgt=pos_target_embeddings,
                                           tgt_mask=subsequent_mask(target.size(1)).to(device=self.device),
-                                          tgt_key_padding_mask=target_mask,
+                                          tgt_key_padding_mask=(target_mask == 0),
                                           memory=enc_hidden_states,
                                           memory_mask=full_mask(target.size(1),
                                                                 enc_hidden_states.size(1)).to(device=self.device),
-                                          memory_key_padding_mask=inputs['attention_mask'].float())
+                                          memory_key_padding_mask=(inputs['attention_mask'] == 0))
 
             tag_target_scores = torch.einsum('abc, dc -> abd', decoder_output, tag_embeddings)
 
@@ -174,11 +174,11 @@ class BeamSearchNode(object):
 def subsequent_mask(size):
     attn_shape = (size, size)
     subsequent_mask = np.triu(np.ones(attn_shape), k=1).astype('uint8')
-    return torch.from_numpy(subsequent_mask) == 0
+    return torch.from_numpy(subsequent_mask) == 1
 
 
 def full_mask(size1, size2):
-    return torch.ones((size1, size2)) == 1
+    return torch.ones((size1, size2)) == 0
 
 
 def beam_decode(inp, enc_hid, cur_model, domain):
@@ -248,9 +248,8 @@ def beam_decode(inp, enc_hid, cur_model, domain):
                                                    memory_mask=full_mask(ys.size(1),
                                                                          encoder_output.size(1)).to(
                                                        device=cur_model.device),
-                                                   memory_key_padding_mask=inp['attention_mask'].float(),
-                                                   tgt_mask=subsequent_mask(ys.size(1)).to(device=
-                                                                                                  cur_model.device))
+                                                   memory_key_padding_mask=(inp['attention_mask'] == 0),
+                                                   tgt_mask=subsequent_mask(ys.size(1)).to(device=cur_model.device))
 
                 tag_target_scores = torch.einsum('ac, dc -> ad', decoder_output[:, -1], tag_embeddings)
 
