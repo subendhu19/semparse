@@ -137,7 +137,7 @@ class CustomSeq2Seq(nn.Module):
 
             fixed_scores[:, :, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
 
-            fix_spl_tokens = torch.range(0, 2).long().to(device=self.device)
+            fix_spl_tokens = torch.arange(0, 3).long().to(device=self.device)
             fix_spl_embeddings = self.decoder_emb(fix_spl_tokens)
 
             fixed_scores[:, :, :3] = torch.einsum('abc, dc -> abd', decoder_output, fix_spl_embeddings)
@@ -261,7 +261,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 fixed_scores[:, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
 
-                fix_spl_tokens = torch.range(0, 2).long().to(device=cur_model.device)
+                fix_spl_tokens = torch.arange(0, 3).long().to(device=cur_model.device)
                 fix_spl_embeddings = cur_model.decoder_emb(fix_spl_tokens)
 
                 fixed_scores[:, :3] = torch.einsum('ac, dc -> ad', decoder_output[:, -1], fix_spl_embeddings)
