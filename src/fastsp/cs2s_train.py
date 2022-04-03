@@ -133,7 +133,7 @@ class CustomSeq2Seq(nn.Module):
 
             src_ptr_scores = torch.einsum('abc, adc -> abd', decoder_output,
                                           enc_hidden_states)  # / np.sqrt(decoder_output.shape[-1])
-            src_ptr_scores = src_ptr_scores * inputs['attention_mask']
+            src_ptr_scores = src_ptr_scores * inputs['attention_mask'].unsqueeze(1)
 
             fixed_scores[:, :, 3:src_ptr_scores.shape[-1]] = src_ptr_scores
 
@@ -258,7 +258,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 src_ptr_scores = torch.einsum('ac, adc -> ad', decoder_output[:, -1],
                                               encoder_output)  # / np.sqrt(decoder_output.shape[-1])
-                src_ptr_scores = src_ptr_scores * inp['attention_mask']
+                src_ptr_scores = src_ptr_scores * inp['attention_mask'].unsqueeze(1)
 
                 fixed_scores[:, 3:src_ptr_scores.shape[-1]] = src_ptr_scores
 
