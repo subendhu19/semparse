@@ -370,8 +370,7 @@ if __name__ == "__main__":
 
     encoder = AutoModel.from_pretrained(model_checkpoint).to(device)
     d_model = encoder.config.hidden_size
-    decoder = TransformerDecoder(TransformerDecoderLayer(d_model=d_model, nhead=8,
-                                                         batch_first=True), num_layers=6).to(device)
+    decoder = TransformerDecoder(TransformerDecoderLayer(d_model=d_model, nhead=8), num_layers=6).to(device)
 
     model = CustomSeq2Seq(enc=encoder, dec=decoder, tok=tokenizer)
     optimizer = torch.optim.Adam(model.parameters(), lr=2e-5)
