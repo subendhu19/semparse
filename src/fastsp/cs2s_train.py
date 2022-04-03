@@ -86,9 +86,9 @@ class CustomSeq2Seq(nn.Module):
         else:
             self.tag_encoder = enc
 
-        self.position = PositionalEncoding(self.d_model, self.dropout)
+        self.position = PositionalEncoding(self.d_model, self.dropout).to(self.device)
         self.decoder_emb = Embeddings(d_model=self.d_model, vocab=len(target_vocab),
-                                      padding_idx=target_vocab.index('<PAD>'))
+                                      padding_idx=target_vocab.index('<PAD>')).to(self.device)
         self.fix_len = 67
 
         self.loss = torch.nn.CrossEntropyLoss(ignore_index=0)
@@ -110,7 +110,7 @@ class CustomSeq2Seq(nn.Module):
 
             fixed_target_embeddings = self.decoder_emb(target * fixed_target_mask)
 
-            tag_target_tokens = (target * ~fixed_target_mask - self.fix_len) + (torch.ones_like(target) * fixed_target_mask)
+            tag_target_tokens = (target * ~fixed_target_mask - self.fix_len) * ~fixed_target_mask
             tag_target_embeddings = F.embedding(tag_target_tokens, tag_embeddings)
 
             target_embeddings = ((fixed_target_embeddings * fixed_target_mask.unsqueeze(2)) +
