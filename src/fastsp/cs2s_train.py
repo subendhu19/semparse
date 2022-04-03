@@ -118,8 +118,12 @@ class CustomSeq2Seq(nn.Module):
 
             pos_target_embeddings = self.position(target_embeddings)
 
-            decoder_output = self.decoder(pos_target_embeddings, enc_hidden_states,
-                                          inputs['attention_mask'].float(), target_mask)
+            decoder_output = self.decoder(tgt=pos_target_embeddings,
+                                          tgt_mask=subsequent_mask(target.size(1)).long().to(device=self.device),
+                                          tgt_key_padding_mask=target_mask,
+                                          memory=enc_hidden_states,
+                                          memory_mask=full_mask(target.size(1), inputs.size(1)),
+                                          memory_key_padding_mask=inputs['attention_mask'].float())
 
             tag_target_scores = torch.einsum('abc, dc -> abd', decoder_output, tag_embeddings)
 
@@ -166,10 +170,14 @@ class BeamSearchNode(object):
         return True
 
 
-def subsequent_mask(size, batch_size=1):
-    attn_shape = (batch_size, size, size)
+def subsequent_mask(size):
+    attn_shape = (size, size)
     subsequent_mask = np.triu(np.ones(attn_shape), k=1).astype('uint8')
     return torch.from_numpy(subsequent_mask) == 0
+
+
+def full_mask(size1, size2):
+    return torch.ones((size1, size2)) == 1
 
 
 def beam_decode(inp, enc_hid, cur_model, domain):
@@ -185,7 +193,6 @@ def beam_decode(inp, enc_hid, cur_model, domain):
     for idx in range(enc_hid.size(0)):
 
         encoder_output = enc_hid[idx, :, :].unsqueeze(0)  # [1, 128, 768]
-        src_mask = inp['attention_mask']
 
         # Number of sentence to generate
         endnodes = []
@@ -235,10 +242,14 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 pos_target_embeddings = cur_model.position(target_embeddings)
 
-                decoder_output = cur_model.decoder(pos_target_embeddings, enc_hid,
-                                                   src_mask.float(),
-                                                   Variable(subsequent_mask(ys.size(1), batch_size=batch_size).long().
-                                                            to(device=cur_model.device)))
+                decoder_output = cur_model.decoder(tgt=pos_target_embeddings,
+                                                   memory=enc_hid,
+                                                   memory_mask=full_mask(ys.size(1),
+                                                                         encoder_output.size(1)).to(
+                                                       device=cur_model.device),
+                                                   memory_key_padding_mask=inp['attention_mask'].float(),
+                                                   tgt_mask=subsequent_mask(ys.size(1)).long().to(device=
+                                                                                                  cur_model.device))
 
                 tag_target_scores = torch.einsum('ac, dc -> ad', decoder_output[:, -1], tag_embeddings)
 
@@ -246,7 +257,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 src_ptr_scores = torch.einsum('ac, adc -> ad', decoder_output[:, -1],
                                               encoder_output)  # / np.sqrt(decoder_output.shape[-1])
-                src_ptr_scores = src_ptr_scores * src_mask
+                src_ptr_scores = src_ptr_scores * inp['attention_mask']
 
                 fixed_scores[:, 3:src_ptr_scores.shape[-1]] = src_ptr_scores
 
@@ -370,7 +381,8 @@ if __name__ == "__main__":
 
     encoder = AutoModel.from_pretrained(model_checkpoint).to(device)
     d_model = encoder.config.hidden_size
-    decoder = TransformerDecoder(TransformerDecoderLayer(d_model=d_model, nhead=8), num_layers=6).to(device)
+    decoder = TransformerDecoder(TransformerDecoderLayer(d_model=d_model, nhead=8, batch_first=True),
+                                 num_layers=6).to(device)
 
     model = CustomSeq2Seq(enc=encoder, dec=decoder, tok=tokenizer)
     optimizer = torch.optim.Adam(model.parameters(), lr=2e-5)
