@@ -22,7 +22,7 @@ target_vocab = ['<PAD>', '<START>', '<END>'] + ['@ptr_{}'.format(i) for i in ran
 schema = {}
 
 
-def process_s2s_data(path, domain_list, split, bsize, tokenizer, device):
+def process_s2s_data(path, domain_list, split, bsize, tokenizer):
     processed = []
     for domain in domain_list:
         all_examples = []
@@ -40,11 +40,11 @@ def process_s2s_data(path, domain_list, split, bsize, tokenizer, device):
 
             sents = [a[0] for a in mini_batch]
             sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
-                                     add_special_tokens=False).to(device=device)
+                                     add_special_tokens=False)
 
             target = [a[1] for a in mini_batch]
             pad = len(max(target, key=len))
-            target = torch.tensor([i + [0] * (pad - len(i)) for i in target]).to(device=device)
+            target = torch.tensor([i + [0] * (pad - len(i)) for i in target])
 
             processed.append((sent_tensors, target, domain))
 
@@ -364,9 +364,9 @@ if __name__ == "__main__":
     log_every = args.log_every
     device = "cuda:0"
 
-    train_processed = process_s2s_data(data_folder, train_domains, 'train', batch_size, tokenizer, device)
-    val_processed_1 = process_s2s_data(data_folder, train_domains, 'eval', batch_size, tokenizer, device)
-    val_processed_2 = process_s2s_data(data_folder, [held_out_domain], 'eval', batch_size, tokenizer, device)
+    train_processed = process_s2s_data(data_folder, train_domains, 'train', batch_size, tokenizer)
+    val_processed_1 = process_s2s_data(data_folder, train_domains, 'eval', batch_size, tokenizer)
+    val_processed_2 = process_s2s_data(data_folder, [held_out_domain], 'eval', batch_size, tokenizer)
 
     encoder = AutoModel.from_pretrained(model_checkpoint).to(device)
     d_model = encoder.config.hidden_size
@@ -396,6 +396,8 @@ if __name__ == "__main__":
         model.train()
         for i in range(0, len(train_processed)):
             inp, tgt, domain = train_processed[i]
+            inp = inp.to(device=device)
+            tgt = tgt.to(device=device)
 
             loss, logits = model(inp, tgt, domain)
 
@@ -419,6 +421,8 @@ if __name__ == "__main__":
 
             for i in range(0, len(val_processed_1)):
                 inp, tgt, domain = val_processed_1[i]
+                inp = inp.to(device=device)
+                tgt = tgt.to(device=device)
 
                 loss, logits = model(inp, tgt, domain)
 
@@ -449,6 +453,8 @@ if __name__ == "__main__":
 
             for i in range(0, len(val_processed_2)):
                 inp, tgt, domain = val_processed_2[i]
+                inp = inp.to(device=device)
+                tgt = tgt.to(device=device)
 
                 loss, logits = model(inp, tgt, domain)
 
