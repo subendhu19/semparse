@@ -435,7 +435,8 @@ if __name__ == "__main__":
                 inp = inp.to(device=device)
                 tgt = tgt.to(device=device)
 
-                loss, logits = model(inp, tgt, domain)
+                with torch.no_grad():
+                    loss, logits = model(inp, tgt, domain)
 
                 scores = logits.reshape(-1, logits.shape[2])
                 preds = torch.argmax(scores, dim=1)
@@ -467,7 +468,8 @@ if __name__ == "__main__":
                 inp = inp.to(device=device)
                 tgt = tgt.to(device=device)
 
-                loss, logits = model(inp, tgt, domain)
+                with torch.no_grad():
+                    loss, logits = model(inp, tgt, domain)
 
                 scores = logits.reshape(-1, logits.shape[2])
                 preds = torch.argmax(scores, dim=1)
