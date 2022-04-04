@@ -439,7 +439,7 @@ if __name__ == "__main__":
 
                 scores = logits.reshape(-1, logits.shape[2])
                 preds = torch.argmax(scores, dim=1)
-                tags = tgt.reshape(-1)
+                tags = tgt[:, 1:].reshape(-1)
 
                 mask = tags > 0
                 total += torch.sum(mask).item()
@@ -471,7 +471,7 @@ if __name__ == "__main__":
 
                 scores = logits.reshape(-1, logits.shape[2])
                 preds = torch.argmax(scores, dim=1)
-                tags = tgt.reshape(-1)
+                tags = tgt[:, 1:].reshape(-1)
 
                 mask = tags > 0
                 total += torch.sum(mask).item()
