@@ -19,10 +19,9 @@ import numpy as np
 
 random.seed(1100)
 target_vocab = ['<PAD>', '<START>', '<END>'] + ['@ptr_{}'.format(i) for i in range(64)]
-schema = {}
 
 
-def process_s2s_data(path, domain_list, split, bsize, tokenizer):
+def process_s2s_data(path, domain_list, split, bsize, tokenizer, schema):
     processed = []
     for domain in domain_list:
         all_examples = []
@@ -377,9 +376,9 @@ if __name__ == "__main__":
     log_every = args.log_every
     device = "cuda:0"
 
-    train_processed = process_s2s_data(data_folder, train_domains, 'train', batch_size, tokenizer)
-    val_processed_1 = process_s2s_data(data_folder, train_domains, 'eval', batch_size, tokenizer)
-    val_processed_2 = process_s2s_data(data_folder, [held_out_domain], 'eval', batch_size, tokenizer)
+    train_processed = process_s2s_data(data_folder, train_domains, 'train', batch_size, tokenizer, schema)
+    val_processed_1 = process_s2s_data(data_folder, train_domains, 'eval', batch_size, tokenizer, schema)
+    val_processed_2 = process_s2s_data(data_folder, [held_out_domain], 'eval', batch_size, tokenizer, schema)
 
     encoder = AutoModel.from_pretrained(model_checkpoint).to(device)
     d_model = encoder.config.hidden_size

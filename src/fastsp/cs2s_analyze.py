@@ -54,7 +54,7 @@ if __name__ == "__main__":
     schema = pickle.load(open(os.path.join(data_folder, 'schema.p'), 'rb'))
 
     eval_processed = process_s2s_data(data_folder, [args.eval_domain], 'test', args.batch_size,
-                                      tokenizer)
+                                      tokenizer, schema)
 
     encoder = AutoModel.from_pretrained(args.enc_checkpoint).to(device)
     d_model = encoder.config.hidden_size
