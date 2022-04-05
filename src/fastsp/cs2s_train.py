@@ -70,20 +70,23 @@ def get_slot_expression(token):
 
 
 class CustomSeq2Seq(nn.Module):
-    def __init__(self, enc, dec, tok, schema, tag_enc=None):
+    def __init__(self, enc, dec, schema, tag_model=None):
         super(CustomSeq2Seq, self).__init__()
         self.dropout = 0.1
         self.d_model = enc.config.hidden_size
-        self.tokenizer = tok
         self.device = enc.device
 
         self.encoder = enc
         self.decoder = dec
 
-        if tag_enc:
-            self.tag_encoder = tag_enc
+        self.tag_model = tag_model
+
+        if tag_model:
+            self.tag_encoder = AutoModel.from_pretrained(tag_model)
+            self.tag_tokenizer = AutoTokenizer.from_pretrained(tag_model)
         else:
             self.tag_encoder = enc
+            self.tag_tokenizer = AutoTokenizer.from_pretrained(enc.config._name_or_path)
 
         self.position = PositionalEncoding(self.d_model, self.dropout).to(self.device)
         self.decoder_emb = Embeddings(d_model=self.d_model, vocab=len(target_vocab),
@@ -103,10 +106,14 @@ class CustomSeq2Seq(nn.Module):
             target_mask = (target > 0).float()
 
             tag_list = [get_slot_expression(a) for a in self.schema[domain]['intents'] + self.schema[domain]['slots']]
-            tag_tensors = self.tokenizer(tag_list, return_tensors="pt", padding=True,
-                                         add_special_tokens=False).to(device=self.device)
+            tag_tensors = self.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
+                                             add_special_tokens=False).to(device=self.device)
             tag_outs = self.tag_encoder(**tag_tensors)
-            tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
+
+            if self.tag_model[:4] == 'bert':
+                tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
+            else:
+                tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
 
             fixed_target_embeddings = self.decoder_emb(target * fixed_target_mask)
 
@@ -228,10 +235,13 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 tag_list = [get_slot_expression(a) for a in cur_model.schema[domain]['intents'] +
                             cur_model.schema[domain]['slots']]
-                tag_tensors = cur_model.tokenizer(tag_list, return_tensors="pt", padding=True,
-                                                  add_special_tokens=False).to(device=cur_model.device)
+                tag_tensors = cur_model.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
+                                                      add_special_tokens=False).to(device=cur_model.device)
                 tag_outs = cur_model.tag_encoder(**tag_tensors)
-                tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
+                if cur_model.tag_model[:4] == 'bert':
+                    tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
+                else:
+                    tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
 
                 fixed_target_embeddings = cur_model.decoder_emb(ys * fixed_target_mask)
 
@@ -354,6 +364,8 @@ if __name__ == "__main__":
     parser.add_argument('--validate_every', type=int, default=1)
 
     parser.add_argument('--model_checkpoint', type=str, default='roberta-base')
+    parser.add_argument('--use_span_encoder', action='store_true')
+    parser.add_argument('--span_encoder_checkpoint', type=str, default='bert-base-uncased')
 
     args = parser.parse_args()
 
@@ -384,7 +396,11 @@ if __name__ == "__main__":
     decoder = TransformerDecoder(TransformerDecoderLayer(d_model=d_model, nhead=8, batch_first=True),
                                  num_layers=6).to(device)
 
-    model = CustomSeq2Seq(enc=encoder, dec=decoder, tok=tokenizer)
+    tag_model = None
+    if args.use_span_encoder:
+        tag_model = args.span_encoder_checkpoint
+
+    model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
 
     warmup_proportion = 0.1
     learning_rate = 2e-5

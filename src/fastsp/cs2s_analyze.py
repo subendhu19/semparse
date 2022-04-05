@@ -42,6 +42,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--enc_checkpoint', type=str, default='roberta-base')
     parser.add_argument('--model_checkpoint', type=str, required=True)
+    parser.add_argument('--use_span_encoder', action='store_true')
+    parser.add_argument('--span_encoder_checkpoint', type=str, default='bert-base-uncased')
 
     args = parser.parse_args()
 
@@ -61,7 +63,11 @@ if __name__ == "__main__":
     decoder = TransformerDecoder(TransformerDecoderLayer(d_model=d_model, nhead=8, batch_first=True),
                                  num_layers=6).to(device)
 
-    model = CustomSeq2Seq(enc=encoder, dec=decoder, tok=tokenizer, schema=schema)
+    tag_model = None
+    if args.use_span_encoder:
+        tag_model = args.span_encoder_checkpoint
+
+    model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
     model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
     model.eval()
 
