@@ -65,7 +65,7 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
     model.eval()
 
-    out_file = open(os.path.join(save_folder, '{}_preds.txt'), 'w')
+    out_file = open(os.path.join(save_folder, '{}_preds.txt'.format(args.eval_domain)), 'w')
 
     for i in range(len(eval_processed)):
         inp, tgt, domain = eval_processed[i]
