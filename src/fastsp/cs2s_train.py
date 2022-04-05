@@ -82,7 +82,7 @@ class CustomSeq2Seq(nn.Module):
         self.tag_model = tag_model
 
         if tag_model:
-            self.tag_encoder = AutoModel.from_pretrained(tag_model)
+            self.tag_encoder = AutoModel.from_pretrained(tag_model).to(self.device)
             self.tag_tokenizer = AutoTokenizer.from_pretrained(tag_model)
         else:
             self.tag_encoder = enc
