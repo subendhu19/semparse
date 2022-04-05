@@ -20,7 +20,7 @@ def post_process(tgt_ids, input_ids, dom, tok):
                 dec_tok = target_vocab[id]
                 if '@ptr' in dec_tok:
                     point_tok = input_ids[id - 3]
-                    decoded.append(tok.convert_ids_to_tokens(point_tok))
+                    decoded.append(tok.convert_ids_to_tokens(point_tok.item()))
                 else:
                     decoded.append(dec_tok)
             else:
@@ -76,6 +76,6 @@ if __name__ == "__main__":
             preds = model(inp, tgt, domain, decode=True)
 
         for j in range(len(preds)):
-            out_file.write(post_process(preds[j], inp['input_ids'][j], domain, tokenizer) + '\n')
+            out_file.write(post_process(preds[j][0], inp['input_ids'][j], domain, tokenizer) + '\n')
 
     out_file.close()

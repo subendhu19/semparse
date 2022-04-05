@@ -244,11 +244,11 @@ def beam_decode(inp, enc_hid, cur_model, domain):
                 pos_target_embeddings = cur_model.position(target_embeddings)
 
                 decoder_output = cur_model.decoder(tgt=pos_target_embeddings,
-                                                   memory=enc_hid,
+                                                   memory=encoder_output,
                                                    memory_mask=full_mask(ys.size(1),
                                                                          encoder_output.size(1)).to(
                                                        device=cur_model.device),
-                                                   memory_key_padding_mask=(inp['attention_mask'] == 0),
+                                                   memory_key_padding_mask=(inp['attention_mask'][idx].unsqueeze(0) == 0),
                                                    tgt_mask=subsequent_mask(ys.size(1)).to(device=cur_model.device))
 
                 tag_target_scores = torch.einsum('ac, dc -> ad', decoder_output[:, -1], tag_embeddings)
@@ -257,7 +257,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 src_ptr_scores = torch.einsum('ac, adc -> ad', decoder_output[:, -1],
                                               encoder_output)  # / np.sqrt(decoder_output.shape[-1])
-                src_ptr_scores = src_ptr_scores * inp['attention_mask']
+                src_ptr_scores = src_ptr_scores * inp['attention_mask'][idx].unsqueeze(0)
 
                 fixed_scores[:, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
 
