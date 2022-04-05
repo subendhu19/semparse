@@ -6,7 +6,7 @@ from datetime import datetime
 from torch import nn
 from queue import PriorityQueue
 
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, AdamW, get_linear_schedule_with_warmup
 from torch.nn import TransformerDecoder, TransformerDecoderLayer
 
 import random
@@ -385,7 +385,25 @@ if __name__ == "__main__":
                                  num_layers=6).to(device)
 
     model = CustomSeq2Seq(enc=encoder, dec=decoder, tok=tokenizer)
-    optimizer = torch.optim.Adam(model.parameters(), lr=2e-5)
+
+    warmup_proportion = 0.1
+    learning_rate = 2e-5
+    adam_epsilon = 1e-8
+    weight_decay = 0.01
+
+    num_train_optimization_steps = len(train_processed) * epochs
+
+    param_optimizer = list(model.named_parameters())
+    no_decay = ['bias', 'LayerNorm.weight', 'norm.a_2', 'norm.b_2']
+    optimizer_grouped_parameters = [
+        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+         'weight_decay': weight_decay},
+        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    ]
+    warmup_steps = int(warmup_proportion * num_train_optimization_steps)
+    optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate, eps=adam_epsilon)
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps,
+                                                num_training_steps=num_train_optimization_steps)
 
     # Training metrics
     ind_accuracies = [0]
@@ -415,6 +433,7 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            scheduler.step()
             update += 1
 
             if update % log_every == 0:
