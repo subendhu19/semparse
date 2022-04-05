@@ -231,12 +231,11 @@ def beam_decode(inp, enc_hid, cur_model, domain):
                 tag_tensors = cur_model.tokenizer(tag_list, return_tensors="pt", padding=True,
                                                   add_special_tokens=False).to(device=cur_model.device)
                 tag_outs = cur_model.tag_encoder(**tag_tensors)
-                tag_embeddings = mean_pooling(tag_outs, tag_outs['attention_mask'])
+                tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
 
                 fixed_target_embeddings = cur_model.decoder_emb(ys * fixed_target_mask)
 
-                tag_target_tokens = (ys * ~fixed_target_mask - fix_len) + (
-                            torch.ones_like(ys) * fixed_target_mask)
+                tag_target_tokens = (ys * ~fixed_target_mask - fix_len) * ~fixed_target_mask
                 tag_target_embeddings = F.embedding(tag_target_tokens, tag_embeddings)
 
                 target_embeddings = ((fixed_target_embeddings * fixed_target_mask.unsqueeze(2)) +
@@ -258,7 +257,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 src_ptr_scores = torch.einsum('ac, adc -> ad', decoder_output[:, -1],
                                               encoder_output)  # / np.sqrt(decoder_output.shape[-1])
-                src_ptr_scores = src_ptr_scores * inp['attention_mask'].unsqueeze(1)
+                src_ptr_scores = src_ptr_scores * inp['attention_mask']
 
                 fixed_scores[:, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
 
