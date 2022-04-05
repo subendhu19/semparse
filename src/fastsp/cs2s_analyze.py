@@ -61,7 +61,7 @@ if __name__ == "__main__":
     decoder = TransformerDecoder(TransformerDecoderLayer(d_model=d_model, nhead=8, batch_first=True),
                                  num_layers=6).to(device)
 
-    model = CustomSeq2Seq(enc=encoder, dec=decoder, tok=tokenizer)
+    model = CustomSeq2Seq(enc=encoder, dec=decoder, tok=tokenizer, schema=schema)
     model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
     model.eval()
 

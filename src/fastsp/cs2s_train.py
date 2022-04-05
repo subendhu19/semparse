@@ -71,7 +71,7 @@ def get_slot_expression(token):
 
 
 class CustomSeq2Seq(nn.Module):
-    def __init__(self, enc, dec, tok, tag_enc=None):
+    def __init__(self, enc, dec, tok, schema, tag_enc=None):
         super(CustomSeq2Seq, self).__init__()
         self.dropout = 0.1
         self.d_model = enc.config.hidden_size
@@ -92,6 +92,7 @@ class CustomSeq2Seq(nn.Module):
         self.fix_len = 67
 
         self.loss = torch.nn.CrossEntropyLoss(ignore_index=0)
+        self.schema = schema
 
     def forward(self, inputs, target, domain, decode=False):
 
@@ -102,7 +103,7 @@ class CustomSeq2Seq(nn.Module):
             fixed_target_mask = target < self.fix_len
             target_mask = (target > 0).float()
 
-            tag_list = [get_slot_expression(a) for a in schema[domain]['intents'] + schema[domain]['slots']]
+            tag_list = [get_slot_expression(a) for a in self.schema[domain]['intents'] + self.schema[domain]['slots']]
             tag_tensors = self.tokenizer(tag_list, return_tensors="pt", padding=True,
                                          add_special_tokens=False).to(device=self.device)
             tag_outs = self.tag_encoder(**tag_tensors)
@@ -226,7 +227,8 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 fixed_target_mask = ys < fix_len
 
-                tag_list = [get_slot_expression(a) for a in schema[domain]['intents'] + schema[domain]['slots']]
+                tag_list = [get_slot_expression(a) for a in cur_model.schema[domain]['intents'] +
+                            cur_model.schema[domain]['slots']]
                 tag_tensors = cur_model.tokenizer(tag_list, return_tensors="pt", padding=True,
                                                   add_special_tokens=False).to(device=cur_model.device)
                 tag_outs = cur_model.tag_encoder(**tag_tensors)
