@@ -84,7 +84,10 @@ if __name__ == "__main__":
                 schema[args.eval_domain]['slots']]
     tag_tensors = tag_tokenizer(tag_list, return_tensors="pt", padding=True,
                                 add_special_tokens=False).to(device=tag_encoder.device)
-    tag_outs = tag_encoder(**tag_tensors)
+    tag_encoder.eval()
+    with torch.no_grad():
+        tag_outs = tag_encoder(**tag_tensors)
+
     if tag_model[:4] == 'bert':
         tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
     else:
