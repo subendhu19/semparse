@@ -15,6 +15,8 @@ schema = {}
 def post_process(tgt_ids, input_ids, dom, tok):
     decoded = []
     for id in tgt_ids:
+        if id == target_vocab.index('<START>'):
+            continue
         if id == target_vocab.index('<END>'):
             break
         else:
@@ -75,7 +77,8 @@ if __name__ == "__main__":
     print('Model loaded. Beginning evaluation. Num batches: {}'.format(len(eval_processed)),
           flush=True)
 
-    out_file = open(os.path.join(save_folder, '{}_preds.txt'.format(args.eval_domain)), 'w')
+    mname = args.model_checkpoint.split('/')[-1]
+    out_file = open(os.path.join(save_folder, '{}_{}_preds.txt'.format(args.eval_domain, mname)), 'w')
 
     for i in tqdm(range(len(eval_processed))):
         inp, tgt, domain = eval_processed[i]
