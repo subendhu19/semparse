@@ -70,7 +70,7 @@ def get_slot_expression(token):
 
 
 class CustomSeq2Seq(nn.Module):
-    def __init__(self, enc, dec, schema, tag_model=None, tag_embeddings=None):
+    def __init__(self, enc, dec, schema, tag_model=None):
         super(CustomSeq2Seq, self).__init__()
         self.dropout = 0.1
         self.d_model = enc.config.hidden_size
@@ -95,7 +95,7 @@ class CustomSeq2Seq(nn.Module):
 
         self.loss = torch.nn.CrossEntropyLoss(ignore_index=0)
         self.schema = schema
-        self.fixed_tag_embeddings = tag_embeddings
+        self.fixed_tag_embeddings = None
 
     def forward(self, inputs, target, domain, decode=False):
 
