@@ -13,7 +13,15 @@ if __name__ == "__main__":
     golds = []
     with open(args.gold_file) as inf:
         for line in inf:
-            golds.append(line.strip().split('\t')[-1])
+            nlf_toks = []
+            lf_toks = line.strip().split('\t')[-1].split()
+            utt_toks = line.strip().split('\t')[1].split()
+            for tok in lf_toks:
+                if '@ptr' in tok:
+                    nlf_toks.append(utt_toks[int(tok.split('_')[-1])])
+                else:
+                    nlf_toks.append(tok)
+            golds.append(' '.join(nlf_toks))
 
     preds = []
     with open(args.pred_file) as inf:
@@ -66,6 +74,8 @@ if __name__ == "__main__":
                 ent_list.append(ent_id)
                 ent_count += 1
             elif ']' in word:
+                if len(ent_list) == 0:
+                    continue
                 ent_spans[ent_list[-1]]['done'] = True
                 ent_list = ent_list[:-1]
             else:
