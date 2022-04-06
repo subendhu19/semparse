@@ -110,7 +110,7 @@ if __name__ == "__main__":
         for p in gold_spans[eid]:
             if p in pred_spans[eid]:
                 recall_n += 1
-        recall_d += 1
+            recall_d += 1
 
     em = em_n / em_d * 100.0
     precision = precision_n / precision_d * 100.0
