@@ -7,7 +7,7 @@ from torch.nn import TransformerDecoder, TransformerDecoderLayer
 
 from tqdm import tqdm
 
-from src.fastsp.cs2s_train import process_s2s_data, CustomSeq2Seq, target_vocab
+from src.fastsp.cs2s_train import process_s2s_data, CustomSeq2Seq, target_vocab, get_slot_expression, mean_pooling
 
 schema = {}
 
@@ -68,10 +68,30 @@ if __name__ == "__main__":
                                  num_layers=6).to(device)
 
     tag_model = None
+    tag_tokenizer = None
+    tag_encoder = None
+
     if args.use_span_encoder:
         tag_model = args.span_encoder_checkpoint
+        tag_tokenizer = AutoTokenizer.from_pretrained(tag_model)
+        tag_encoder = AutoModel.from_pretrained(tag_model).to(encoder.device)
 
-    model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
+    if tag_tokenizer is None:
+        tag_tokenizer = AutoTokenizer.from_pretrained(args.enc_checkpoint)
+        tag_encoder = AutoModel.from_pretrained(args.enc_checkpoint).to(encoder.device)
+
+    tag_list = [get_slot_expression(a) for a in schema[args.eval_domain]['intents'] +
+                schema[args.eval_domain]['slots']]
+    tag_tensors = tag_tokenizer(tag_list, return_tensors="pt", padding=True,
+                                add_special_tokens=False).to(device=tag_encoder.device)
+    tag_outs = tag_encoder(**tag_tensors)
+    if tag_model[:4] == 'bert':
+        tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
+    else:
+        tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
+
+    model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model,
+                          tag_embeddings={args.eval_domain: tag_embeddings})
     model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
     model.eval()
     print('Model loaded. Beginning evaluation. Num batches: {}'.format(len(eval_processed)),

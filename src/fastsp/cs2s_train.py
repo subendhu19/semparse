@@ -70,7 +70,7 @@ def get_slot_expression(token):
 
 
 class CustomSeq2Seq(nn.Module):
-    def __init__(self, enc, dec, schema, tag_model=None):
+    def __init__(self, enc, dec, schema, tag_model=None, tag_embeddings=None):
         super(CustomSeq2Seq, self).__init__()
         self.dropout = 0.1
         self.d_model = enc.config.hidden_size
@@ -95,6 +95,7 @@ class CustomSeq2Seq(nn.Module):
 
         self.loss = torch.nn.CrossEntropyLoss(ignore_index=0)
         self.schema = schema
+        self.fixed_tag_embeddings = tag_embeddings
 
     def forward(self, inputs, target, domain, decode=False):
 
@@ -218,7 +219,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
                 score, n = nodes.get()
                 ys = n.ys
 
-                if ys.shape[1] > 100:
+                if ys.shape[1] > 60:
                     breaknow = True
                     break
 
@@ -233,15 +234,18 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 fixed_target_mask = ys < fix_len
 
-                tag_list = [get_slot_expression(a) for a in cur_model.schema[domain]['intents'] +
-                            cur_model.schema[domain]['slots']]
-                tag_tensors = cur_model.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
-                                                      add_special_tokens=False).to(device=cur_model.device)
-                tag_outs = cur_model.tag_encoder(**tag_tensors)
-                if cur_model.tag_model[:4] == 'bert':
-                    tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
+                if cur_model.fixed_tag_embeddings is None:
+                    tag_list = [get_slot_expression(a) for a in cur_model.schema[domain]['intents'] +
+                                cur_model.schema[domain]['slots']]
+                    tag_tensors = cur_model.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
+                                                          add_special_tokens=False).to(device=cur_model.device)
+                    tag_outs = cur_model.tag_encoder(**tag_tensors)
+                    if cur_model.tag_model[:4] == 'bert':
+                        tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
+                    else:
+                        tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
                 else:
-                    tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
+                    tag_embeddings = cur_model.fixed_tag_embeddings[domain]
 
                 fixed_target_embeddings = cur_model.decoder_emb(ys * fixed_target_mask)
 
