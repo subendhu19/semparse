@@ -48,6 +48,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_checkpoint', type=str, required=True)
     parser.add_argument('--use_span_encoder', action='store_true')
     parser.add_argument('--span_encoder_checkpoint', type=str, default='bert-base-uncased')
+    parser.add_argument('--beam_width', type=int, default=5)
 
     args = parser.parse_args()
 
@@ -74,6 +75,7 @@ if __name__ == "__main__":
 
     model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
     model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
+    model.beam_width = args.beam_width
     model.eval()
 
     tag_list = [get_slot_expression(a) for a in schema[args.eval_domain]['intents'] +

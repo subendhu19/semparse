@@ -96,6 +96,7 @@ class CustomSeq2Seq(nn.Module):
         self.loss = torch.nn.CrossEntropyLoss(ignore_index=0)
         self.schema = schema
         self.fixed_tag_embeddings = None
+        self.beam_width = 5
 
     def forward(self, inputs, target, domain, decode=False):
 
@@ -190,7 +191,7 @@ def full_mask(size1, size2):
 
 
 def beam_decode(inp, enc_hid, cur_model, domain):
-    beam_width = 5
+    beam_width = cur_model.beam_width
     topk = 1  # how many sentence do you want to generate
     decoded_batch = []
     start_symbol = 1
