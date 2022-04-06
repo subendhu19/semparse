@@ -87,7 +87,7 @@ if __name__ == "__main__":
         tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
     else:
         tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
-    model.fixed_tag_embeddings = tag_embeddings
+    model.fixed_tag_embeddings = {args.eval_domain: tag_embeddings}
 
     print('Model loaded. Beginning evaluation. Num batches: {}'.format(len(eval_processed)),
           flush=True)
