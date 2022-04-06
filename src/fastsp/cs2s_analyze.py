@@ -5,6 +5,8 @@ import argparse
 from transformers import AutoTokenizer, AutoModel
 from torch.nn import TransformerDecoder, TransformerDecoderLayer
 
+from tqdm import tqdm
+
 from src.fastsp.cs2s_train import process_s2s_data, CustomSeq2Seq, target_vocab
 
 schema = {}
@@ -70,10 +72,12 @@ if __name__ == "__main__":
     model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
     model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
     model.eval()
+    print('Model loaded. Beginning evaluation. Num batches: {}'.format(len(eval_processed)),
+          flush=True)
 
     out_file = open(os.path.join(save_folder, '{}_preds.txt'.format(args.eval_domain)), 'w')
 
-    for i in range(len(eval_processed)):
+    for i in tqdm(range(len(eval_processed))):
         inp, tgt, domain = eval_processed[i]
         inp = inp.to(device=device)
         tgt = tgt.to(device=device)
