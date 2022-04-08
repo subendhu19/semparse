@@ -220,11 +220,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
                 score, n = nodes.get()
                 ys = n.ys
 
-                if ys.shape[1] > 60:
-                    breaknow = True
-                    break
-
-                if n.wordid == end_symbol and n.prevNode is not None:
+                if (n.wordid == end_symbol and n.prevNode is not None) or ys.shape[1] > 60:
                     endnodes.append((score, n))
                     # if we reached maximum # of sentences required
                     if len(endnodes) == beam_width:
