@@ -91,7 +91,7 @@ class CustomSeq2Seq(nn.Module):
                                       padding_idx=target_vocab.index('<PAD>')).to(self.device)
         self.fix_len = 66
 
-        self.length_module = torch.nn.Linear(self.d_model, max_target_len)
+        self.length_module = torch.nn.Linear(self.d_model, max_target_len).to(self.device)
 
         self.loss = torch.nn.CrossEntropyLoss(ignore_index=0)
         self.schema = schema
@@ -155,8 +155,8 @@ class CustomSeq2Seq(nn.Module):
 
             target_inputs = (torch.arange(largest_length).expand(top_lengths.shape[0],
                                                                  top_lengths.shape[1],
-                                                                 largest_length)
-                             < top_lengths.unsqueeze(2)).long().to(device=self.device)
+                                                                 largest_length).to(device=self.device)
+                             < top_lengths.unsqueeze(2)).long()
             target_inputs = target_inputs.reshape(target_inputs.shape[0] * target_inputs.shape[1], -1)
 
             target_embeddings = self.decoder_emb(target_inputs)
@@ -209,7 +209,8 @@ class CustomSeq2Seq(nn.Module):
             for i in range(predictions.shape[0]):
                 all_beams = []
                 for j in range(predictions.shape[1]):
-                    all_beams.append(list(predictions[i][j][: top_lengths[i][j]].numpy()))
+                    all_beams.append(list(predictions[i][j][: top_lengths[i][j]].cpu().numpy()))
+                ys.append(all_beams)
             return ys
 
 
@@ -248,7 +249,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Training models for fast semantic parsing")
 
-    parser.add_argument('--data_folder', type=str, default='/home/srongali/data/top/seq2seq')
+    parser.add_argument('--data_folder', type=str, default='/home/srongali/data/top/seq2seq_sp')
     parser.add_argument('--save_folder', type=str, default='/mnt/nfs/scratch1/srongali/semparse/top')
 
     parser.add_argument('--held_out_domain', type=str, required=True)
