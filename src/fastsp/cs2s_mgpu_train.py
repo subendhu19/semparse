@@ -98,9 +98,9 @@ class CustomSeq2Seq(nn.Module):
         self.fixed_tag_embeddings = None
         self.beam_width = 5
 
-    def forward(self, inputs, target, domain, decode=False):
+    def forward(self, input_ids, attention_mask, target, domain, decode=False):
 
-        encoder_outputs = self.encoder(**inputs)
+        encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
         enc_hidden_states = encoder_outputs['last_hidden_state']
 
         if not decode:
@@ -133,7 +133,7 @@ class CustomSeq2Seq(nn.Module):
                                           memory=enc_hidden_states,
                                           memory_mask=full_mask(target.size(1),
                                                                 enc_hidden_states.size(1)).to(device=self.device),
-                                          memory_key_padding_mask=(inputs['attention_mask'] == 0))
+                                          memory_key_padding_mask=(attention_mask == 0))
 
             tag_target_scores = torch.einsum('abc, dc -> abd', decoder_output, tag_embeddings)
 
@@ -142,7 +142,7 @@ class CustomSeq2Seq(nn.Module):
 
             src_ptr_scores = torch.einsum('abc, adc -> abd', decoder_output,
                                           enc_hidden_states)  # / np.sqrt(decoder_output.shape[-1])
-            src_ptr_scores = src_ptr_scores * inputs['attention_mask'].unsqueeze(1)
+            src_ptr_scores = src_ptr_scores * attention_mask.unsqueeze(1)
 
             fixed_scores[:, :, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
 
@@ -160,7 +160,7 @@ class CustomSeq2Seq(nn.Module):
             return loss, final_scores
 
         else:
-            ys = beam_decode(inputs, enc_hidden_states, self, domain)
+            ys = beam_decode(attention_mask, enc_hidden_states, self, domain)
             return ys
 
 
@@ -190,7 +190,7 @@ def full_mask(size1, size2):
     return torch.ones((size1, size2)) == 0
 
 
-def beam_decode(inp, enc_hid, cur_model, domain):
+def beam_decode(attention_mask, enc_hid, cur_model, domain):
     beam_width = cur_model.beam_width
     topk = 1  # how many sentence do you want to generate
     decoded_batch = []
@@ -259,7 +259,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
                                                    memory_mask=full_mask(ys.size(1),
                                                                          encoder_output.size(1)).to(
                                                        device=cur_model.device),
-                                                   memory_key_padding_mask=(inp['attention_mask'][idx].unsqueeze(0) == 0),
+                                                   memory_key_padding_mask=(attention_mask[idx].unsqueeze(0) == 0),
                                                    tgt_mask=subsequent_mask(ys.size(1)).to(device=cur_model.device))
 
                 tag_target_scores = torch.einsum('ac, dc -> ad', decoder_output[:, -1], tag_embeddings)
@@ -268,7 +268,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 src_ptr_scores = torch.einsum('ac, adc -> ad', decoder_output[:, -1],
                                               encoder_output)  # / np.sqrt(decoder_output.shape[-1])
-                src_ptr_scores = src_ptr_scores * inp['attention_mask'][idx].unsqueeze(0)
+                src_ptr_scores = src_ptr_scores * attention_mask[idx].unsqueeze(0)
 
                 fixed_scores[:, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
 
@@ -447,10 +447,11 @@ if __name__ == "__main__":
         model.train()
         for i in range(0, len(train_processed)):
             inp, tgt, domain = train_processed[i]
-            inp = inp.to(device=device)
+            inp_ids = inp['input_ids'].to(device=device)
+            att_mask = inp['attention_mask'].to(device=device)
             tgt = tgt.to(device=device)
 
-            loss, logits = model(inp, tgt, domain)
+            loss, logits = model(inp_ids, att_mask, tgt, domain)
 
             optimizer.zero_grad()
             loss.backward()
@@ -473,11 +474,12 @@ if __name__ == "__main__":
 
             for i in range(0, len(val_processed_1)):
                 inp, tgt, domain = val_processed_1[i]
-                inp = inp.to(device=device)
+                inp_ids = inp['input_ids'].to(device=device)
+                att_mask = inp['attention_mask'].to(device=device)
                 tgt = tgt.to(device=device)
 
                 with torch.no_grad():
-                    loss, logits = model(inp, tgt, domain)
+                    loss, logits = model(inp_ids, att_mask, tgt, domain)
 
                 scores = logits.reshape(-1, logits.shape[2])
                 preds = torch.argmax(scores, dim=1)
@@ -506,11 +508,12 @@ if __name__ == "__main__":
 
             for i in range(0, len(val_processed_2)):
                 inp, tgt, domain = val_processed_2[i]
-                inp = inp.to(device=device)
+                inp_ids = inp['input_ids'].to(device=device)
+                att_mask = inp['attention_mask'].to(device=device)
                 tgt = tgt.to(device=device)
 
                 with torch.no_grad():
-                    loss, logits = model(inp, tgt, domain)
+                    loss, logits = model(inp_ids, att_mask, tgt, domain)
 
                 scores = logits.reshape(-1, logits.shape[2])
                 preds = torch.argmax(scores, dim=1)
