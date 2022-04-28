@@ -407,7 +407,7 @@ if __name__ == "__main__":
     learning_rate = 2e-5
     adam_epsilon = 1e-8
     weight_decay = 0.01
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0, reduction='none')
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0)
 
     num_train_optimization_steps = len(train_processed) * epochs
 
