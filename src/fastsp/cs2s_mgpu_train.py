@@ -93,7 +93,6 @@ class CustomSeq2Seq(nn.Module):
                                       padding_idx=target_vocab.index('<PAD>')).to(self.device)
         self.fix_len = 67
 
-        self.loss = torch.nn.CrossEntropyLoss(ignore_index=0)
         self.schema = schema
         self.fixed_tag_embeddings = None
         self.beam_width = 5
@@ -153,11 +152,7 @@ class CustomSeq2Seq(nn.Module):
 
             final_scores = torch.cat((fixed_scores, tag_target_scores), dim=2)[:, :-1, :]
 
-            target_y = target[:, 1:]
-
-            loss = self.loss(final_scores.contiguous().view(-1, final_scores.shape[-1]),
-                             target_y.contiguous().view(-1))
-            return loss, final_scores
+            return final_scores
 
         else:
             ys = beam_decode(attention_mask, enc_hidden_states, self, domain)
@@ -412,6 +407,7 @@ if __name__ == "__main__":
     learning_rate = 2e-5
     adam_epsilon = 1e-8
     weight_decay = 0.01
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0, reduction='none')
 
     num_train_optimization_steps = len(train_processed) * epochs
 
@@ -451,7 +447,11 @@ if __name__ == "__main__":
             att_mask = inp['attention_mask'].to(device=device)
             tgt = tgt.to(device=device)
 
-            loss, logits = model(inp_ids, att_mask, tgt, domain)
+            logits = model(inp_ids, att_mask, tgt, domain)
+            target_y = tgt[:, 1:]
+
+            loss = loss_fn(logits.contiguous().view(-1, logits.shape[-1]),
+                           target_y.contiguous().view(-1))
 
             optimizer.zero_grad()
             loss.backward()
@@ -479,7 +479,7 @@ if __name__ == "__main__":
                 tgt = tgt.to(device=device)
 
                 with torch.no_grad():
-                    loss, logits = model(inp_ids, att_mask, tgt, domain)
+                    logits = model(inp_ids, att_mask, tgt, domain)
 
                 scores = logits.reshape(-1, logits.shape[2])
                 preds = torch.argmax(scores, dim=1)
@@ -513,7 +513,7 @@ if __name__ == "__main__":
                 tgt = tgt.to(device=device)
 
                 with torch.no_grad():
-                    loss, logits = model(inp_ids, att_mask, tgt, domain)
+                    logits = model(inp_ids, att_mask, tgt, domain)
 
                 scores = logits.reshape(-1, logits.shape[2])
                 preds = torch.argmax(scores, dim=1)
