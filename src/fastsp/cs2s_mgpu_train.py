@@ -109,7 +109,7 @@ class CustomSeq2Seq(nn.Module):
 
             tag_list = [get_slot_expression(a) for a in self.schema[domain]['intents'] + self.schema[domain]['slots']]
             tag_tensors = self.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
-                                             add_special_tokens=False).to(device=self.device)
+                                             add_special_tokens=False).to(device=input_ids.device)
             tag_outs = self.tag_encoder(**tag_tensors)
 
             if self.tag_model[:4] == 'bert':
@@ -128,17 +128,17 @@ class CustomSeq2Seq(nn.Module):
             pos_target_embeddings = self.position(target_embeddings)
 
             decoder_output = self.decoder(tgt=pos_target_embeddings,
-                                          tgt_mask=subsequent_mask(target.size(1)).to(device=self.device),
+                                          tgt_mask=subsequent_mask(target.size(1)).to(device=input_ids.device),
                                           tgt_key_padding_mask=(target_mask == 0),
                                           memory=enc_hidden_states,
                                           memory_mask=full_mask(target.size(1),
-                                                                enc_hidden_states.size(1)).to(device=self.device),
+                                                                enc_hidden_states.size(1)).to(device=input_ids.device),
                                           memory_key_padding_mask=(attention_mask == 0))
 
             tag_target_scores = torch.einsum('abc, dc -> abd', decoder_output, tag_embeddings)
 
             fixed_scores = torch.zeros(tag_target_scores.shape[0], tag_target_scores.shape[1],
-                                       self.fix_len).to(device=self.device)
+                                       self.fix_len).to(device=input_ids.device)
 
             src_ptr_scores = torch.einsum('abc, adc -> abd', decoder_output,
                                           enc_hidden_states)  # / np.sqrt(decoder_output.shape[-1])
@@ -146,7 +146,7 @@ class CustomSeq2Seq(nn.Module):
 
             fixed_scores[:, :, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
 
-            fix_spl_tokens = torch.arange(0, 3).long().to(device=self.device)
+            fix_spl_tokens = torch.arange(0, 3).long().to(device=input_ids.device)
             fix_spl_embeddings = self.decoder_emb(fix_spl_tokens)
 
             fixed_scores[:, :, :3] = torch.einsum('abc, dc -> abd', decoder_output, fix_spl_embeddings)
@@ -207,7 +207,7 @@ def beam_decode(attention_mask, enc_hid, cur_model, domain):
         # Number of sentence to generate
         endnodes = []
 
-        ys = torch.ones(batch_size, 1).fill_(start_symbol).long().to(device=cur_model.device)
+        ys = torch.ones(batch_size, 1).fill_(start_symbol).long().to(device=enc_hid.device)
 
         node = BeamSearchNode(ys, None, start_symbol, 0, 1)
         nodes = PriorityQueue()
@@ -235,7 +235,7 @@ def beam_decode(attention_mask, enc_hid, cur_model, domain):
                     tag_list = [get_slot_expression(a) for a in cur_model.schema[domain]['intents'] +
                                 cur_model.schema[domain]['slots']]
                     tag_tensors = cur_model.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
-                                                          add_special_tokens=False).to(device=cur_model.device)
+                                                          add_special_tokens=False).to(device=enc_hid.device)
                     tag_outs = cur_model.tag_encoder(**tag_tensors)
                     if cur_model.tag_model[:4] == 'bert':
                         tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
@@ -258,13 +258,13 @@ def beam_decode(attention_mask, enc_hid, cur_model, domain):
                                                    memory=encoder_output,
                                                    memory_mask=full_mask(ys.size(1),
                                                                          encoder_output.size(1)).to(
-                                                       device=cur_model.device),
+                                                       device=enc_hid.device),
                                                    memory_key_padding_mask=(attention_mask[idx].unsqueeze(0) == 0),
-                                                   tgt_mask=subsequent_mask(ys.size(1)).to(device=cur_model.device))
+                                                   tgt_mask=subsequent_mask(ys.size(1)).to(device=enc_hid.device))
 
                 tag_target_scores = torch.einsum('ac, dc -> ad', decoder_output[:, -1], tag_embeddings)
 
-                fixed_scores = torch.zeros(tag_target_scores.shape[0], fix_len).to(device=cur_model.device)
+                fixed_scores = torch.zeros(tag_target_scores.shape[0], fix_len).to(device=enc_hid.device)
 
                 src_ptr_scores = torch.einsum('ac, adc -> ad', decoder_output[:, -1],
                                               encoder_output)  # / np.sqrt(decoder_output.shape[-1])
@@ -272,7 +272,7 @@ def beam_decode(attention_mask, enc_hid, cur_model, domain):
 
                 fixed_scores[:, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
 
-                fix_spl_tokens = torch.arange(0, 3).long().to(device=cur_model.device)
+                fix_spl_tokens = torch.arange(0, 3).long().to(device=enc_hid.device)
                 fix_spl_embeddings = cur_model.decoder_emb(fix_spl_tokens)
 
                 fixed_scores[:, :3] = torch.einsum('ac, dc -> ad', decoder_output[:, -1], fix_spl_embeddings)
