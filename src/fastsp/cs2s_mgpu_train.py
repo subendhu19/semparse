@@ -231,6 +231,8 @@ if __name__ == "__main__":
     parser.add_argument('--model_checkpoint', type=str, default='roberta-base')
     parser.add_argument('--use_span_encoder', action='store_true')
     parser.add_argument('--span_encoder_checkpoint', type=str, default='bert-base-uncased')
+    parser.add_argument('--patience', type=int, default=10)
+
 
     args = parser.parse_args()
 
