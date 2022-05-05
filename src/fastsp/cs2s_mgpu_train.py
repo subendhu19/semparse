@@ -24,6 +24,8 @@ schema = None
 def process_s2s_data(path, file_name, bsize, tokenizer, schema):
     processed = []
     all_examples = []
+
+    error_count = 0
     with open(os.path.join(path, file_name)) as inf:
         for line in inf:
             fields = line.strip().split('\t')
@@ -33,10 +35,14 @@ def process_s2s_data(path, file_name, bsize, tokenizer, schema):
                 continue
 
             target = fields[2].split()
+            for t in target:
+                if (t not in target_vocab_dict) and (t not in schema):
+                    error_count += 1
+                    continue
             tags_present = list(set([a for a in target if a in schema]))
             all_examples.append((fields[0], target, tags_present))
+    print('Errors in {}: {}'.format(file_name, error_count))
 
-    error_count = 0
     for i in range(0, len(all_examples), bsize):
         mini_batch = all_examples[i: i + bsize]
 
@@ -53,13 +59,9 @@ def process_s2s_data(path, file_name, bsize, tokenizer, schema):
 
         target = []
         for mb_item in mini_batch:
-            try:
-                target_indices = [1] + [target_vocab_dict[a] if a in target_vocab_dict else
-                                        67 + all_tags_dict[a]
-                                        for a in mb_item[1]] + [2]
-            except:
-                error_count += 1
-                continue
+            target_indices = [1] + [target_vocab_dict[a] if a in target_vocab_dict else
+                                    67 + all_tags_dict[a]
+                                    for a in mb_item[1]] + [2]
             target.append(target_indices)
 
         pad = len(max(target, key=len))
@@ -67,7 +69,6 @@ def process_s2s_data(path, file_name, bsize, tokenizer, schema):
 
         processed.append((sent_tensors, target, all_tags))
 
-    print('Errors in {}: {}'.format(file_name, error_count))
     return processed
 
 
