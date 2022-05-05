@@ -28,6 +28,7 @@ def process_s2s_data(path, file_name, bsize, tokenizer, schema):
     error_count = 0
     with open(os.path.join(path, file_name)) as inf:
         for line in inf:
+            skip = False
             fields = line.strip().split('\t')
 
             # Skip sentences longer than 64 tokens
@@ -38,7 +39,10 @@ def process_s2s_data(path, file_name, bsize, tokenizer, schema):
             for t in target:
                 if (t not in target_vocab_dict) and (t not in schema):
                     error_count += 1
-                    continue
+                    skip = True
+                    break
+            if skip:
+                continue
             tags_present = list(set([a for a in target if a in schema]))
             all_examples.append((fields[0], target, tags_present))
     print('Errors in {}: {}'.format(file_name, error_count))
