@@ -16,6 +16,7 @@ import numpy as np
 
 random.seed(1100)
 target_vocab = ['<PAD>', '<START>', '<END>'] + ['@ptr_{}'.format(i) for i in range(64)]
+target_vocab_dict = {target_vocab[i]: i for i in range(len(target_vocab))}
 descriptions = None
 schema = None
 
@@ -43,13 +44,18 @@ def process_s2s_data(path, file_name, bsize, tokenizer, schema):
         sent_tensors = tokenizer(sents, return_tensors="pt", padding=True,
                                  add_special_tokens=False)
 
-        all_tags = list(set(sum([a[2] for a in mini_batch], [])))
+        all_tags = []
+        for mb_item in mini_batch:
+            for x in mb_item[2]:
+                if x not in all_tags:
+                    all_tags.append(x)
+        all_tags_dict = {all_tags[j]: j for j in range(len(all_tags))}
 
         target = []
         for mb_item in mini_batch:
             try:
-                target_indices = [1] + [target_vocab.index(a) if a in target_vocab else
-                                        67 + all_tags.index(a)
+                target_indices = [1] + [target_vocab_dict[a] if a in target_vocab_dict else
+                                        67 + all_tags_dict[a]
                                         for a in mb_item[1]] + [2]
             except:
                 error_count += 1
