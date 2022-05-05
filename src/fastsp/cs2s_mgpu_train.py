@@ -18,6 +18,7 @@ random.seed(1100)
 target_vocab = ['<PAD>', '<START>', '<END>'] + ['@ptr_{}'.format(i) for i in range(64)]
 descriptions = None
 schema = None
+schema_inv = None
 
 
 def process_s2s_data(path, file_name, bsize, tokenizer, schema):
@@ -32,7 +33,7 @@ def process_s2s_data(path, file_name, bsize, tokenizer, schema):
                 continue
 
             target = fields[2].split()
-            tags_present = list(set([schema.index(a) for a in target if a in schema]))
+            tags_present = list(set([schema[a] for a in target if a in schema]))
             all_examples.append((fields[0], target, tags_present))
 
     for i in range(0, len(all_examples), bsize):
@@ -66,10 +67,10 @@ def mean_pooling(model_output, attention_mask):
 
 
 def get_slot_expression(qid):
-    if '[' in schema[qid]:
-        return 'begin' + descriptions[schema[qid][1:]]
+    if '[' in schema_inv[qid]:
+        return 'begin' + descriptions[schema_inv[qid][1:]]
     else:
-        return 'end' + descriptions[schema[qid][:-1]]
+        return 'end' + descriptions[schema_inv[qid][:-1]]
 
 
 class CustomSeq2Seq(nn.Module):
@@ -229,7 +230,16 @@ if __name__ == "__main__":
         for line in inf:
             fields = line.strip().split('\t')
             descriptions[fields[0]] = fields[1]
-    schema = ['[' + a for a in list(descriptions.keys())] + [a + ']' for a in list(descriptions.keys())]
+
+    schema = {}
+    tag_count = 0
+    for tag_item in ['[' + a for a in list(descriptions.keys())] + [a + ']' for a in list(descriptions.keys())]:
+        schema[tag_item] = tag_count
+        tag_count += 1
+
+    schema_inv = {}
+    for k in schema:
+        schema_inv[schema[k]] = k
 
     epochs = args.epochs
     batch_size = args.batch_size
@@ -252,7 +262,7 @@ if __name__ == "__main__":
     if args.use_span_encoder:
         tag_model = args.span_encoder_checkpoint
 
-    model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
+    model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema_inv, tag_model=tag_model)
     model = nn.DataParallel(model)
 
     warmup_proportion = 0.1
