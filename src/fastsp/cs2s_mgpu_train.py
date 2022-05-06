@@ -285,7 +285,7 @@ if __name__ == "__main__":
     weight_decay = 0.01
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0)
 
-    num_train_optimization_steps = 80000 * epochs
+    num_train_optimization_steps = 75000 * epochs
 
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'LayerNorm.weight', 'norm.a_2', 'norm.b_2']
