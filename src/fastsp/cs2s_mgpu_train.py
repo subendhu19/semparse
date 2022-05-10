@@ -13,6 +13,8 @@ import math
 from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
+from queue import PriorityQueue
+import operator
 
 random.seed(1100)
 target_vocab = ['<PAD>', '<START>', '<END>'] + ['@ptr_{}'.format(i) for i in range(64)]
@@ -117,61 +119,81 @@ class CustomSeq2Seq(nn.Module):
         self.fixed_tag_embeddings = None
         self.beam_width = 5
 
-    def forward(self, input_ids, attention_mask, target, all_tags):
+    def forward(self, input_ids, attention_mask, target, all_tags, decode=False):
 
         encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
         enc_hidden_states = encoder_outputs['last_hidden_state']
 
-        fixed_target_mask = target < self.fix_len
-        target_mask = (target > 0).float()
+        if not decode:
+            fixed_target_mask = target < self.fix_len
+            target_mask = (target > 0).float()
 
-        tag_list = [get_slot_expression(a) for a in all_tags]
-        tag_tensors = self.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
-                                         add_special_tokens=False).to(device=input_ids.device)
-        tag_outs = self.tag_encoder(**tag_tensors)
+            tag_list = [get_slot_expression(a) for a in all_tags]
+            tag_tensors = self.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
+                                             add_special_tokens=False).to(device=input_ids.device)
+            tag_outs = self.tag_encoder(**tag_tensors)
 
-        if self.tag_model[:4] == 'bert':
-            tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
+            if self.tag_model[:4] == 'bert':
+                tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
+            else:
+                tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
+
+            fixed_target_embeddings = self.decoder_emb(target * fixed_target_mask)
+
+            tag_target_tokens = (target * ~fixed_target_mask - self.fix_len) * ~fixed_target_mask
+            tag_target_embeddings = F.embedding(tag_target_tokens, tag_embeddings)
+
+            target_embeddings = ((fixed_target_embeddings * fixed_target_mask.unsqueeze(2)) +
+                                 (tag_target_embeddings * ~fixed_target_mask.unsqueeze(2)))
+
+            pos_target_embeddings = self.position(target_embeddings)
+
+            decoder_output = self.decoder(tgt=pos_target_embeddings,
+                                          tgt_mask=subsequent_mask(target.size(1)).to(device=input_ids.device),
+                                          tgt_key_padding_mask=(target_mask == 0),
+                                          memory=enc_hidden_states,
+                                          memory_mask=full_mask(target.size(1),
+                                                                enc_hidden_states.size(1)).to(device=input_ids.device),
+                                          memory_key_padding_mask=(attention_mask == 0))
+
+            tag_target_scores = torch.einsum('abc, dc -> abd', decoder_output, tag_embeddings)
+
+            fixed_scores = torch.zeros(tag_target_scores.shape[0], tag_target_scores.shape[1],
+                                       self.fix_len).to(device=input_ids.device)
+
+            src_ptr_scores = torch.einsum('abc, adc -> abd', decoder_output,
+                                          enc_hidden_states)  # / np.sqrt(decoder_output.shape[-1])
+            src_ptr_scores = src_ptr_scores * attention_mask.unsqueeze(1)
+
+            fixed_scores[:, :, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
+
+            fix_spl_tokens = torch.arange(0, 3).long().to(device=input_ids.device)
+            fix_spl_embeddings = self.decoder_emb(fix_spl_tokens)
+
+            fixed_scores[:, :, :3] = torch.einsum('abc, dc -> abd', decoder_output, fix_spl_embeddings)
+
+            final_scores = torch.cat((fixed_scores, tag_target_scores), dim=2)[:, :-1, :]
+
+            return final_scores
         else:
-            tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
+            ys = beam_decode(attention_mask, enc_hidden_states, self, all_tags)
+            return ys
 
-        fixed_target_embeddings = self.decoder_emb(target * fixed_target_mask)
 
-        tag_target_tokens = (target * ~fixed_target_mask - self.fix_len) * ~fixed_target_mask
-        tag_target_embeddings = F.embedding(tag_target_tokens, tag_embeddings)
+class BeamSearchNode(object):
+    def __init__(self, ys, previousNode, wordId, logProb, length):
+        self.ys = ys
+        self.prevNode = previousNode
+        self.wordid = wordId
+        self.logp = logProb
+        self.leng = length
 
-        target_embeddings = ((fixed_target_embeddings * fixed_target_mask.unsqueeze(2)) +
-                             (tag_target_embeddings * ~fixed_target_mask.unsqueeze(2)))
+    def eval(self, alpha=1.0):
+        reward = 0
+        return self.logp / float(self.leng - 1 + 1e-6) + alpha * reward
 
-        pos_target_embeddings = self.position(target_embeddings)
-
-        decoder_output = self.decoder(tgt=pos_target_embeddings,
-                                      tgt_mask=subsequent_mask(target.size(1)).to(device=input_ids.device),
-                                      tgt_key_padding_mask=(target_mask == 0),
-                                      memory=enc_hidden_states,
-                                      memory_mask=full_mask(target.size(1),
-                                                            enc_hidden_states.size(1)).to(device=input_ids.device),
-                                      memory_key_padding_mask=(attention_mask == 0))
-
-        tag_target_scores = torch.einsum('abc, dc -> abd', decoder_output, tag_embeddings)
-
-        fixed_scores = torch.zeros(tag_target_scores.shape[0], tag_target_scores.shape[1],
-                                   self.fix_len).to(device=input_ids.device)
-
-        src_ptr_scores = torch.einsum('abc, adc -> abd', decoder_output,
-                                      enc_hidden_states)  # / np.sqrt(decoder_output.shape[-1])
-        src_ptr_scores = src_ptr_scores * attention_mask.unsqueeze(1)
-
-        fixed_scores[:, :, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
-
-        fix_spl_tokens = torch.arange(0, 3).long().to(device=input_ids.device)
-        fix_spl_embeddings = self.decoder_emb(fix_spl_tokens)
-
-        fixed_scores[:, :, :3] = torch.einsum('abc, dc -> abd', decoder_output, fix_spl_embeddings)
-
-        final_scores = torch.cat((fixed_scores, tag_target_scores), dim=2)[:, :-1, :]
-
-        return final_scores
+    def __lt__(self, other):
+        return True
 
 
 def subsequent_mask(size):
@@ -182,6 +204,132 @@ def subsequent_mask(size):
 
 def full_mask(size1, size2):
     return torch.ones((size1, size2)) == 0
+
+
+def beam_decode(inp_att, enc_hid, cur_model, all_tags):
+    beam_width = cur_model.beam_width
+    topk = 1  # how many sentence do you want to generate
+    decoded_batch = []
+    start_symbol = 1
+    end_symbol = 2
+    batch_size = 1
+    fix_len = cur_model.fix_len
+
+    # decoding goes sentence by sentence
+    for idx in range(enc_hid.size(0)):
+
+        encoder_output = enc_hid[idx, :, :].unsqueeze(0)  # [1, 128, 768]
+
+        # Number of sentence to generate
+        endnodes = []
+
+        ys = torch.ones(batch_size, 1).fill_(start_symbol).long().to(device=cur_model.device)
+
+        node = BeamSearchNode(ys, None, start_symbol, 0, 1)
+        nodes = PriorityQueue()
+        nodes.put((-node.eval(), node))
+        breaknow = False
+
+        while not breaknow:
+            nextnodes = PriorityQueue()
+            while nodes.qsize() > 0:
+                score, n = nodes.get()
+                ys = n.ys
+
+                if (n.wordid == end_symbol and n.prevNode is not None) or ys.shape[1] > 60:
+                    endnodes.append((score, n))
+                    # if we reached maximum # of sentences required
+                    if len(endnodes) == beam_width:
+                        breaknow = True
+                        break
+                    else:
+                        continue
+
+                fixed_target_mask = ys < fix_len
+
+                if cur_model.fixed_tag_embeddings is None:
+                    tag_list = [get_slot_expression(a) for a in all_tags]
+                    tag_tensors = cur_model.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
+                                                          add_special_tokens=False).to(device=cur_model.device)
+                    tag_outs = cur_model.tag_encoder(**tag_tensors)
+                    if cur_model.tag_model[:4] == 'bert':
+                        tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
+                    else:
+                        tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
+                else:
+                    tag_embeddings = cur_model.fixed_tag_embeddings
+
+                fixed_target_embeddings = cur_model.decoder_emb(ys * fixed_target_mask)
+
+                tag_target_tokens = (ys * ~fixed_target_mask - fix_len) * ~fixed_target_mask
+                tag_target_embeddings = F.embedding(tag_target_tokens, tag_embeddings)
+
+                target_embeddings = ((fixed_target_embeddings * fixed_target_mask.unsqueeze(2)) +
+                                     (tag_target_embeddings * ~fixed_target_mask.unsqueeze(2)))
+
+                pos_target_embeddings = cur_model.position(target_embeddings)
+
+                decoder_output = cur_model.decoder(tgt=pos_target_embeddings,
+                                                   memory=encoder_output,
+                                                   memory_mask=full_mask(ys.size(1),
+                                                                         encoder_output.size(1)).to(
+                                                       device=cur_model.device),
+                                                   memory_key_padding_mask=(inp_att[idx].unsqueeze(0) == 0),
+                                                   tgt_mask=subsequent_mask(ys.size(1)).to(device=cur_model.device))
+
+                tag_target_scores = torch.einsum('ac, dc -> ad', decoder_output[:, -1], tag_embeddings)
+
+                fixed_scores = torch.zeros(tag_target_scores.shape[0], fix_len).to(device=cur_model.device)
+
+                src_ptr_scores = torch.einsum('ac, adc -> ad', decoder_output[:, -1],
+                                              encoder_output)  # / np.sqrt(decoder_output.shape[-1])
+                src_ptr_scores = src_ptr_scores * inp_att[idx].unsqueeze(0)
+
+                fixed_scores[:, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
+
+                fix_spl_tokens = torch.arange(0, 3).long().to(device=cur_model.device)
+                fix_spl_embeddings = cur_model.decoder_emb(fix_spl_tokens)
+
+                fixed_scores[:, :3] = torch.einsum('ac, dc -> ad', decoder_output[:, -1], fix_spl_embeddings)
+
+                all_scores = torch.cat((fixed_scores, tag_target_scores), dim=1)
+
+                all_prob = F.log_softmax(all_scores, dim=-1)
+
+                top_log_prob, top_indexes = torch.topk(all_prob, beam_width)
+
+                for new_k in range(beam_width):
+                    decoded_t = top_indexes[0][new_k].view(1, -1).type_as(ys)
+                    log_prob = top_log_prob[0][new_k].item()
+
+                    ys2 = torch.cat([ys, decoded_t], dim=1)
+
+                    node = BeamSearchNode(ys2, n, decoded_t.item(), n.logp + log_prob, n.leng + 1)
+                    score = -node.eval()
+                    nextnodes.put((score, node))
+
+                for i in range(beam_width):
+                    if nextnodes.qsize() > 0:
+                        score, nnode = nextnodes.get()
+                        nodes.put((score, nnode))
+
+        if len(endnodes) == 0:
+            endnodes = [nodes.get() for _ in range(topk)]
+        utterances = []
+        for score, n in sorted(endnodes, key=operator.itemgetter(0)):
+            utterance = [n.wordid]
+            while n.prevNode is not None:
+                n = n.prevNode
+                utterance.append(n.wordid)
+
+            utterance = utterance[::-1]
+            utterances.append(utterance)
+            if len(utterances) == topk:
+                break
+
+        decoded_batch.append(utterances)
+
+    return decoded_batch
 
 
 class Embeddings(nn.Module):
@@ -232,7 +380,6 @@ if __name__ == "__main__":
     parser.add_argument('--use_span_encoder', action='store_true')
     parser.add_argument('--span_encoder_checkpoint', type=str, default='bert-base-uncased')
     parser.add_argument('--patience', type=int, default=10)
-
 
     args = parser.parse_args()
 
