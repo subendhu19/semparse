@@ -88,7 +88,7 @@ if __name__ == "__main__":
           flush=True)
 
     mname = args.model_checkpoint.split('/')[-1]
-    out_file = open(os.path.join(save_folder, '{}_preds.txt'), 'w')
+    out_file = open(os.path.join(save_folder, '{}_preds.txt'.format(mname)), 'w')
 
     for i in tqdm(range(len(test_processed))):
         inp, tgt, all_tags = test_processed[i]
