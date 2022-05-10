@@ -402,7 +402,7 @@ if __name__ == "__main__":
     model = nn.DataParallel(model)
 
     if args.pretrained_checkpoint is not None:
-        model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
+        model.load_state_dict(torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict'])
 
     warmup_proportion = 0.1
     learning_rate = 2e-5
