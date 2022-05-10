@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     tag_model = args.span_encoder_checkpoint
 
-    model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
+    model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=descriptions, tag_model=tag_model)
     model = nn.DataParallel(model)
 
     model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
