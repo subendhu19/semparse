@@ -93,14 +93,13 @@ class CustomSeq2Seq(nn.Module):
                                       padding_idx=target_vocab.index('<PAD>')).to(self.device)
         self.fix_len = 67
 
-        self.loss = torch.nn.CrossEntropyLoss(ignore_index=0)
         self.schema = schema
         self.fixed_tag_embeddings = None
         self.beam_width = 5
 
-    def forward(self, inputs, target, domain, decode=False):
+    def forward(self, input_ids, attention_mask, target, domain, decode=False):
 
-        encoder_outputs = self.encoder(**inputs)
+        encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
         enc_hidden_states = encoder_outputs['last_hidden_state']
 
         if not decode:
@@ -133,7 +132,7 @@ class CustomSeq2Seq(nn.Module):
                                           memory=enc_hidden_states,
                                           memory_mask=full_mask(target.size(1),
                                                                 enc_hidden_states.size(1)).to(device=self.device),
-                                          memory_key_padding_mask=(inputs['attention_mask'] == 0))
+                                          memory_key_padding_mask=(attention_mask == 0))
 
             tag_target_scores = torch.einsum('abc, dc -> abd', decoder_output, tag_embeddings)
 
@@ -142,7 +141,7 @@ class CustomSeq2Seq(nn.Module):
 
             src_ptr_scores = torch.einsum('abc, adc -> abd', decoder_output,
                                           enc_hidden_states)  # / np.sqrt(decoder_output.shape[-1])
-            src_ptr_scores = src_ptr_scores * inputs['attention_mask'].unsqueeze(1)
+            src_ptr_scores = src_ptr_scores * attention_mask.unsqueeze(1)
 
             fixed_scores[:, :, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
 
@@ -153,14 +152,10 @@ class CustomSeq2Seq(nn.Module):
 
             final_scores = torch.cat((fixed_scores, tag_target_scores), dim=2)[:, :-1, :]
 
-            target_y = target[:, 1:]
-
-            loss = self.loss(final_scores.contiguous().view(-1, final_scores.shape[-1]),
-                             target_y.contiguous().view(-1))
-            return loss, final_scores
+            return final_scores
 
         else:
-            ys = beam_decode(inputs, enc_hidden_states, self, domain)
+            ys = beam_decode(attention_mask, enc_hidden_states, self, domain)
             return ys
 
 
@@ -190,7 +185,7 @@ def full_mask(size1, size2):
     return torch.ones((size1, size2)) == 0
 
 
-def beam_decode(inp, enc_hid, cur_model, domain):
+def beam_decode(inp_att, enc_hid, cur_model, domain):
     beam_width = cur_model.beam_width
     topk = 1  # how many sentence do you want to generate
     decoded_batch = []
@@ -259,7 +254,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
                                                    memory_mask=full_mask(ys.size(1),
                                                                          encoder_output.size(1)).to(
                                                        device=cur_model.device),
-                                                   memory_key_padding_mask=(inp['attention_mask'][idx].unsqueeze(0) == 0),
+                                                   memory_key_padding_mask=(inp_att[idx].unsqueeze(0) == 0),
                                                    tgt_mask=subsequent_mask(ys.size(1)).to(device=cur_model.device))
 
                 tag_target_scores = torch.einsum('ac, dc -> ad', decoder_output[:, -1], tag_embeddings)
@@ -268,7 +263,7 @@ def beam_decode(inp, enc_hid, cur_model, domain):
 
                 src_ptr_scores = torch.einsum('ac, adc -> ad', decoder_output[:, -1],
                                               encoder_output)  # / np.sqrt(decoder_output.shape[-1])
-                src_ptr_scores = src_ptr_scores * inp['attention_mask'][idx].unsqueeze(0)
+                src_ptr_scores = src_ptr_scores * inp_att[idx].unsqueeze(0)
 
                 fixed_scores[:, 3:src_ptr_scores.shape[-1]+3] = src_ptr_scores
 
@@ -365,8 +360,10 @@ if __name__ == "__main__":
     parser.add_argument('--validate_every', type=int, default=1)
 
     parser.add_argument('--model_checkpoint', type=str, default='roberta-base')
-    parser.add_argument('--use_span_encoder', action='store_true')
+    parser.add_argument('--skip_span_encoder', action='store_true')
     parser.add_argument('--span_encoder_checkpoint', type=str, default='bert-base-uncased')
+    parser.add_argument('--pretrained_checkpoint', type=str)
+    parser.add_argument('--save_prefix', type=str, default='')
 
     args = parser.parse_args()
 
@@ -398,15 +395,20 @@ if __name__ == "__main__":
                                  num_layers=6).to(device)
 
     tag_model = None
-    if args.use_span_encoder:
+    if not args.skip_span_encoder:
         tag_model = args.span_encoder_checkpoint
 
     model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
+    model = nn.DataParallel(model)
+
+    if args.pretrained_checkpoint is not None:
+        model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
 
     warmup_proportion = 0.1
     learning_rate = 2e-5
     adam_epsilon = 1e-8
     weight_decay = 0.01
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0)
 
     num_train_optimization_steps = len(train_processed) * epochs
 
@@ -442,10 +444,15 @@ if __name__ == "__main__":
         model.train()
         for i in range(0, len(train_processed)):
             inp, tgt, domain = train_processed[i]
-            inp = inp.to(device=device)
+            inp_ids = inp['input_ids'].to(device=device)
+            att_mask = inp['attention_mask'].to(device=device)
             tgt = tgt.to(device=device)
 
-            loss, logits = model(inp, tgt, domain)
+            logits = model(inp_ids, att_mask, tgt, domain)
+            target_y = tgt[:, 1:]
+
+            loss = loss_fn(logits.contiguous().view(-1, logits.shape[-1]),
+                           target_y.contiguous().view(-1))
 
             optimizer.zero_grad()
             loss.backward()
@@ -468,11 +475,12 @@ if __name__ == "__main__":
 
             for i in range(0, len(val_processed_1)):
                 inp, tgt, domain = val_processed_1[i]
-                inp = inp.to(device=device)
+                inp_ids = inp['input_ids'].to(device=device)
+                att_mask = inp['attention_mask'].to(device=device)
                 tgt = tgt.to(device=device)
 
                 with torch.no_grad():
-                    loss, logits = model(inp, tgt, domain)
+                    logits = model(inp_ids, att_mask, tgt, domain)
 
                 scores = logits.reshape(-1, logits.shape[2])
                 preds = torch.argmax(scores, dim=1)
@@ -487,7 +495,7 @@ if __name__ == "__main__":
             if acc > max(ind_accuracies):
                 print('BEST SO FAR! Saving model...')
                 state_dict = {'model_state_dict': model.state_dict()}
-                save_path = os.path.join(save_folder, 's2s_wo_{}_best.pt'.format(held_out_domain))
+                save_path = os.path.join(save_folder, '{}s2s_wo_{}_best.pt'.format(args.save_prefix, held_out_domain))
                 torch.save(state_dict, save_path)
                 print('Best checkpoint saved to {}'.format(save_path), flush=True)
                 patience_count = 0
@@ -501,11 +509,12 @@ if __name__ == "__main__":
 
             for i in range(0, len(val_processed_2)):
                 inp, tgt, domain = val_processed_2[i]
-                inp = inp.to(device=device)
+                inp_ids = inp['input_ids'].to(device=device)
+                att_mask = inp['attention_mask'].to(device=device)
                 tgt = tgt.to(device=device)
 
                 with torch.no_grad():
-                    loss, logits = model(inp, tgt, domain)
+                    logits = model(inp_ids, att_mask, tgt, domain)
 
                 scores = logits.reshape(-1, logits.shape[2])
                 preds = torch.argmax(scores, dim=1)
@@ -526,7 +535,7 @@ if __name__ == "__main__":
     print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
 
     state_dict = {'model_state_dict': model.state_dict()}
-    save_path = os.path.join(save_folder, 's2s_wo_{}_latest.pt'.format(held_out_domain))
+    save_path = os.path.join(save_folder, '{}s2s_wo_{}_latest.pt'.format(args.save_prefix, held_out_domain))
     torch.save(state_dict, save_path)
     print('Latest checkpoint saved to {}'.format(save_path), flush=True)
 
