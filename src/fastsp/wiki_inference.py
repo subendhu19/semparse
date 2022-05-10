@@ -7,6 +7,7 @@ from torch.nn import TransformerDecoder, TransformerDecoderLayer
 from tqdm import tqdm
 
 from src.fastsp.cs2s_mgpu_train import process_s2s_data, CustomSeq2Seq, target_vocab
+from torch import nn
 
 descriptions = None
 schema = None
@@ -77,6 +78,8 @@ if __name__ == "__main__":
     tag_model = args.span_encoder_checkpoint
 
     model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
+    model = nn.DataParallel(model)
+
     model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
     model.beam_width = args.beam_width
     model.eval()
