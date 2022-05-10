@@ -84,7 +84,7 @@ def mean_pooling(model_output, attention_mask):
     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 
-def get_slot_expression(tag_item):
+def get_slot_expression(tag_item, descriptions):
     if '[' in tag_item:
         return 'begin ' + descriptions[tag_item[1:]]
     else:
@@ -128,7 +128,7 @@ class CustomSeq2Seq(nn.Module):
             fixed_target_mask = target < self.fix_len
             target_mask = (target > 0).float()
 
-            tag_list = [get_slot_expression(a) for a in all_tags]
+            tag_list = [get_slot_expression(a, self.schema) for a in all_tags]
             tag_tensors = self.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
                                              add_special_tokens=False).to(device=input_ids.device)
             tag_outs = self.tag_encoder(**tag_tensors)
@@ -248,7 +248,7 @@ def beam_decode(inp_att, enc_hid, cur_model, all_tags):
                 fixed_target_mask = ys < fix_len
 
                 if cur_model.fixed_tag_embeddings is None:
-                    tag_list = [get_slot_expression(a) for a in all_tags]
+                    tag_list = [get_slot_expression(a, cur_model.schema) for a in all_tags]
                     tag_tensors = cur_model.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
                                                           add_special_tokens=False).to(device=cur_model.device)
                     tag_outs = cur_model.tag_encoder(**tag_tensors)
@@ -423,7 +423,7 @@ if __name__ == "__main__":
     if args.use_span_encoder:
         tag_model = args.span_encoder_checkpoint
 
-    model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
+    model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=descriptions, tag_model=tag_model)
     model = nn.DataParallel(model)
 
     warmup_proportion = 0.1
