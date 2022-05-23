@@ -84,7 +84,7 @@ if __name__ == "__main__":
     tag_list = [get_slot_expression(a) for a in schema[args.eval_domain]['intents'] +
                 schema[args.eval_domain]['slots']]
     tag_tensors = model.module.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
-                                             add_special_tokens=False).to(device=model.device)
+                                             add_special_tokens=False).to(device=model.module.device)
     with torch.no_grad():
         tag_outs = model.module.tag_encoder(**tag_tensors)
 
