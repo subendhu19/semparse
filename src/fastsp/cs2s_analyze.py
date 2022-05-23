@@ -98,7 +98,7 @@ if __name__ == "__main__":
           flush=True)
 
     mname = args.model_checkpoint.split('/')[-1]
-    out_file = open(os.path.join(save_folder, '{}_{}_preds.txt'.format(args.eval_domain, mname)), 'w')
+    out_file = open(os.path.join(save_folder, '{}_{}_beam{}_preds.txt'.format(args.eval_domain, mname, args.beam_width)), 'w')
 
     for i in tqdm(range(len(eval_processed))):
         inp, tgt, domain = eval_processed[i]
