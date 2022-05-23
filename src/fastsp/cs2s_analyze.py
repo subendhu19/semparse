@@ -78,21 +78,21 @@ if __name__ == "__main__":
     model = nn.DataParallel(model)
 
     model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
-    model.beam_width = args.beam_width
+    model.module.beam_width = args.beam_width
     model.eval()
 
     tag_list = [get_slot_expression(a) for a in schema[args.eval_domain]['intents'] +
                 schema[args.eval_domain]['slots']]
-    tag_tensors = model.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
-                                      add_special_tokens=False).to(device=model.device)
+    tag_tensors = model.module.tag_tokenizer(tag_list, return_tensors="pt", padding=True,
+                                             add_special_tokens=False).to(device=model.device)
     with torch.no_grad():
-        tag_outs = model.tag_encoder(**tag_tensors)
+        tag_outs = model.module.tag_encoder(**tag_tensors)
 
     if tag_model[:4] == 'bert':
         tag_embeddings = tag_outs['last_hidden_state'][:, 0, :]
     else:
         tag_embeddings = mean_pooling(tag_outs, tag_tensors['attention_mask'])
-    model.fixed_tag_embeddings = {args.eval_domain: tag_embeddings}
+    model.module.fixed_tag_embeddings = {args.eval_domain: tag_embeddings}
 
     print('Model loaded. Beginning evaluation. Num batches: {}'.format(len(eval_processed)),
           flush=True)
