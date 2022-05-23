@@ -6,6 +6,7 @@ from transformers import AutoTokenizer, AutoModel
 from torch.nn import TransformerDecoder, TransformerDecoderLayer
 
 from tqdm import tqdm
+from torch import nn
 
 from src.fastsp.cs2s_train import process_s2s_data, CustomSeq2Seq, target_vocab, get_slot_expression, mean_pooling
 
@@ -74,6 +75,8 @@ if __name__ == "__main__":
         tag_model = args.span_encoder_checkpoint
 
     model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
+    model = nn.DataParallel(model)
+
     model.load_state_dict(torch.load(os.path.join(args.model_checkpoint))['model_state_dict'])
     model.beam_width = args.beam_width
     model.eval()
@@ -99,11 +102,12 @@ if __name__ == "__main__":
 
     for i in tqdm(range(len(eval_processed))):
         inp, tgt, domain = eval_processed[i]
-        inp = inp.to(device=device)
+        inp_ids = inp['input_ids'].to(device=device)
+        att_mask = inp['attention_mask'].to(device=device)
         tgt = tgt.to(device=device)
 
         with torch.no_grad():
-            preds = model(inp, tgt, domain, decode=True)
+            preds = model(inp_ids, att_mask, tgt, domain, decode=True)
 
         for j in range(len(preds)):
             out_file.write(post_process(preds[j][0], inp['input_ids'][j], domain, tokenizer) + '\n')
