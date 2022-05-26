@@ -490,7 +490,7 @@ if __name__ == "__main__":
                 r_loss = loss_fn(r_logits.contiguous().view(-1, r_logits.shape[-1]),
                                  r_target_y.contiguous().view(-1))
 
-                loss += args.reg_multiplier * r_logits
+                loss += args.reg_multiplier * r_loss
 
             optimizer.zero_grad()
             loss.backward()
