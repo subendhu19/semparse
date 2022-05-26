@@ -365,6 +365,10 @@ if __name__ == "__main__":
     parser.add_argument('--pretrained_checkpoint', type=str)
     parser.add_argument('--save_prefix', type=str, default='')
 
+    parser.add_argument('--low_resource', action='store_true')
+    parser.add_argument('--spis', type=int, default=1)
+    parser.add_argument('--reg_multiplier', type=float, default=0.1)
+
     args = parser.parse_args()
 
     model_checkpoint = args.model_checkpoint
@@ -372,9 +376,17 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
     data_folder = args.data_folder
+    low_resource_folder = data_folder + '_un'
     save_folder = args.save_folder
 
-    schema = pickle.load(open(os.path.join(data_folder, 'schema.p'), 'rb'))
+    save_prefix = args.save_prefix
+    if args.low_resource:
+        save_prefix += 'lr_spi_{}_'.format(args.spis)
+
+    if args.low_resource:
+        schema = pickle.load(open(os.path.join(low_resource_folder, 'schema.p'), 'rb'))
+    else:
+        schema = pickle.load(open(os.path.join(data_folder, 'schema.p'), 'rb'))
 
     domains = list(schema.keys())
     held_out_domain = args.held_out_domain
@@ -388,6 +400,11 @@ if __name__ == "__main__":
     train_processed = process_s2s_data(data_folder, train_domains, 'train', batch_size, tokenizer, schema)
     val_processed_1 = process_s2s_data(data_folder, train_domains, 'eval', batch_size, tokenizer, schema)
     val_processed_2 = process_s2s_data(data_folder, [held_out_domain], 'eval', batch_size, tokenizer, schema)
+
+    if args.low_resource:
+        inp_folder = os.path.join(low_resource_folder, 'spi_{}'.format(args.spis))
+        reg_processed = [a for a in train_processed]
+        train_processed = process_s2s_data(low_resource_folder, train_domains, 'train', batch_size, tokenizer, schema)
 
     encoder = AutoModel.from_pretrained(model_checkpoint).to(device)
     d_model = encoder.config.hidden_size
@@ -406,6 +423,11 @@ if __name__ == "__main__":
 
     warmup_proportion = 0.1
     learning_rate = 2e-5
+
+    if args.low_resource:
+        warmup_proportion = 0
+        learning_rate = 1e-5
+
     adam_epsilon = 1e-8
     weight_decay = 0.01
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0)
@@ -436,6 +458,8 @@ if __name__ == "__main__":
 
     for epoch in range(epochs):
         shuffle(train_processed)
+        if args.low_resource:
+            shuffle(reg_processed)
 
         update = 0
         total_updates = len(train_processed)
@@ -453,6 +477,20 @@ if __name__ == "__main__":
 
             loss = loss_fn(logits.contiguous().view(-1, logits.shape[-1]),
                            target_y.contiguous().view(-1))
+
+            if args.low_resource:
+                r_inp, r_tgt, r_domain = random.choice(reg_processed)
+                r_inp_ids = r_inp['input_ids'].to(device=device)
+                r_att_mask = r_inp['attention_mask'].to(device=device)
+                r_tgt = r_tgt.to(device=device)
+
+                r_logits = model(r_inp_ids, r_att_mask, r_tgt, r_domain)
+                r_target_y = r_tgt[:, 1:]
+
+                r_loss = loss_fn(r_logits.contiguous().view(-1, r_logits.shape[-1]),
+                                 r_target_y.contiguous().view(-1))
+
+                loss += args.reg_multiplier * r_logits
 
             optimizer.zero_grad()
             loss.backward()
@@ -492,15 +530,16 @@ if __name__ == "__main__":
 
             acc = correct * 100.0 / total
             print('Same domain sequence accuracy: {:.2f}'.format(acc), flush=True)
-            if acc > max(ind_accuracies):
-                print('BEST SO FAR! Saving model...')
-                state_dict = {'model_state_dict': model.state_dict()}
-                save_path = os.path.join(save_folder, '{}s2s_wo_{}_best.pt'.format(args.save_prefix, held_out_domain))
-                torch.save(state_dict, save_path)
-                print('Best checkpoint saved to {}'.format(save_path), flush=True)
-                patience_count = 0
-            else:
-                patience_count += 1
+            if not args.low_resource:
+                if acc > max(ind_accuracies):
+                    print('BEST SO FAR! Saving model...')
+                    state_dict = {'model_state_dict': model.state_dict()}
+                    save_path = os.path.join(save_folder, '{}s2s_wo_{}_best.pt'.format(save_prefix, held_out_domain))
+                    torch.save(state_dict, save_path)
+                    print('Best checkpoint saved to {}'.format(save_path), flush=True)
+                    patience_count = 0
+                else:
+                    patience_count += 1
 
             ind_accuracies.append(acc)
 
@@ -526,6 +565,18 @@ if __name__ == "__main__":
 
             acc = correct * 100.0 / total
             print('Out of domain sequence accuracy: {:.2f}'.format(acc), flush=True)
+
+            if args.low_resource:
+                if acc > max(ood_accuracies):
+                    print('BEST SO FAR! Saving model...')
+                    state_dict = {'model_state_dict': model.state_dict()}
+                    save_path = os.path.join(save_folder, '{}s2s_wo_{}_best.pt'.format(save_prefix, held_out_domain))
+                    torch.save(state_dict, save_path)
+                    print('Best checkpoint saved to {}'.format(save_path), flush=True)
+                    patience_count = 0
+                else:
+                    patience_count += 1
+
             ood_accuracies.append(acc)
 
             if patience_count > args.patience:
@@ -535,7 +586,7 @@ if __name__ == "__main__":
     print('Done. Total time taken: {}'.format(datetime.now() - start_time), flush=True)
 
     state_dict = {'model_state_dict': model.state_dict()}
-    save_path = os.path.join(save_folder, '{}s2s_wo_{}_latest.pt'.format(args.save_prefix, held_out_domain))
+    save_path = os.path.join(save_folder, '{}s2s_wo_{}_latest.pt'.format(save_prefix, held_out_domain))
     torch.save(state_dict, save_path)
     print('Latest checkpoint saved to {}'.format(save_path), flush=True)
 
