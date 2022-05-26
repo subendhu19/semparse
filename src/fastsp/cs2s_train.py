@@ -404,7 +404,7 @@ if __name__ == "__main__":
     if args.low_resource:
         inp_folder = os.path.join(low_resource_folder, 'spi_{}'.format(args.spis))
         reg_processed = [a for a in train_processed]
-        train_processed = process_s2s_data(low_resource_folder, train_domains, 'train', batch_size, tokenizer, schema)
+        train_processed = process_s2s_data(inp_folder, [held_out_domain], 'train', batch_size, tokenizer, schema)
 
     encoder = AutoModel.from_pretrained(model_checkpoint).to(device)
     d_model = encoder.config.hidden_size
