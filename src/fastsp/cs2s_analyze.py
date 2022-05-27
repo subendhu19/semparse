@@ -51,11 +51,15 @@ if __name__ == "__main__":
     parser.add_argument('--span_encoder_checkpoint', type=str, default='bert-base-uncased')
     parser.add_argument('--beam_width', type=int, default=5)
 
+    parser.add_argument('--low_resource', action='store_true')
+
     args = parser.parse_args()
 
     tokenizer = AutoTokenizer.from_pretrained(args.enc_checkpoint)
 
     data_folder = args.data_folder
+    if args.low_resource:
+        data_folder += '_un'
     save_folder = args.save_folder
     device = "cuda:0"
 
