@@ -416,10 +416,20 @@ if __name__ == "__main__":
         tag_model = args.span_encoder_checkpoint
 
     model = CustomSeq2Seq(enc=encoder, dec=decoder, schema=schema, tag_model=tag_model)
+
+    try:
+        if args.pretrained_checkpoint is not None:
+            model.load_state_dict(torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict'])
+    except:
+        print('Couldnt load at model level. Probably a multiGPU checkpoint...')
+
     model = nn.DataParallel(model)
 
-    if args.pretrained_checkpoint is not None:
-        model.load_state_dict(torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict'])
+    try:
+        if args.pretrained_checkpoint is not None:
+            model.load_state_dict(torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict'])
+    except:
+        print('Couldnt load at module level. Probably a singleGPU checkpoint...')
 
     warmup_proportion = 0.1
     learning_rate = 2e-5
