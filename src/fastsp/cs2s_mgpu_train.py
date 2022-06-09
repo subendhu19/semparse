@@ -47,7 +47,7 @@ def process_s2s_data(path, file_name, bsize, tokenizer, schema):
                 continue
             tags_present = list(set([a for a in target if a in schema]))
             all_examples.append((fields[0], target, tags_present))
-    print('Errors in {}: {}'.format(file_name, error_count))
+    print('Errors in {}: {}'.format(file_name, error_count), flush=True)
 
     for i in range(0, len(all_examples), bsize):
         mini_batch = all_examples[i: i + bsize]
@@ -372,6 +372,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--epochs', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--lr', type=float, default=2e-5)
     parser.add_argument('--log_every', type=int, default=10)
 
     parser.add_argument('--validate_every', type=int, default=1000)
@@ -427,7 +428,7 @@ if __name__ == "__main__":
     model = nn.DataParallel(model)
 
     warmup_proportion = 0.1
-    learning_rate = 2e-5
+    learning_rate = args.lr
     adam_epsilon = 1e-8
     weight_decay = 0.01
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0)
@@ -458,11 +459,11 @@ if __name__ == "__main__":
 
     for epoch in range(epochs):
         shuffle(train_shards)
-        print('Training with shards: {}'.format(str(train_shards)))
+        print('Training with shards: {}'.format(str(train_shards)), flush=True)
         for sc, shard in enumerate(train_shards):
             train_processed = process_s2s_data(data_folder, shard, batch_size, tokenizer, schema)
             shuffle(train_processed)
-            print('Loaded shard {}'.format(shard))
+            print('Loaded shard {}'.format(shard), flush=True)
 
             update = 0
             total_updates = len(train_processed)
@@ -521,7 +522,7 @@ if __name__ == "__main__":
                     acc = correct * 100.0 / total
                     print('Sequence accuracy: {:.2f}'.format(acc), flush=True)
                     if acc > max(ind_accuracies):
-                        print('BEST SO FAR! Saving model...')
+                        print('BEST SO FAR! Saving model...', flush=True)
                         state_dict = {'model_state_dict': model.state_dict()}
                         save_path = os.path.join(save_folder, 'wikidata_best.pt')
                         torch.save(state_dict, save_path)
