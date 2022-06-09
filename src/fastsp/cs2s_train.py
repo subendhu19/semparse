@@ -369,6 +369,8 @@ if __name__ == "__main__":
     parser.add_argument('--spis', type=int, default=1)
     parser.add_argument('--reg_multiplier', type=float, default=0.1)
 
+    parser.add_argument('--lr', type=float, default=2e-5)
+
     args = parser.parse_args()
 
     model_checkpoint = args.model_checkpoint
@@ -432,7 +434,7 @@ if __name__ == "__main__":
         print('Couldnt load at module level. Probably a singleGPU checkpoint...')
 
     warmup_proportion = 0.1
-    learning_rate = 2e-5
+    learning_rate = args.lr
 
     if args.low_resource:
         warmup_proportion = 0
