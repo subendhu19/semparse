@@ -52,6 +52,7 @@ if __name__ == "__main__":
     parser.add_argument('--beam_width', type=int, default=5)
 
     parser.add_argument('--low_resource', action='store_true')
+    parser.add_argument('--eval_postfix', type=str, default='test')
 
     args = parser.parse_args()
 
@@ -65,7 +66,7 @@ if __name__ == "__main__":
 
     schema = pickle.load(open(os.path.join(data_folder, 'schema.p'), 'rb'))
 
-    eval_processed = process_s2s_data(data_folder, [args.eval_domain], 'test', args.batch_size,
+    eval_processed = process_s2s_data(data_folder, [args.eval_domain], args.eval_postfix, args.batch_size,
                                       tokenizer, schema)
 
     encoder = AutoModel.from_pretrained(args.enc_checkpoint).to(device)
