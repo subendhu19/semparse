@@ -1,6 +1,25 @@
 import argparse
 import statistics
 
+
+def acc_process(parse):
+    ws = parse.split(' ')
+    tags = []
+    processed = []
+    for w in ws:
+        if '[' in w:
+            tags.append(w)
+            processed.append(w)
+        elif ']' in w:
+            tags = tags[:-1]
+            processed.append(w)
+        else:
+            if len(tags) > 0:
+                if 'SL:' in tags[-1]:
+                    processed.append(w)
+    return ' '.join(processed)
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Metric computation")
@@ -98,7 +117,7 @@ if __name__ == "__main__":
     recall_d = 0
 
     for eid in range(len(golds)):
-        if golds[eid] == preds[eid]:
+        if acc_process(golds[eid]) == acc_process(preds[eid]):
             em_n += 1
         em_d += 1
 
