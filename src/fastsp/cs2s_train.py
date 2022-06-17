@@ -401,7 +401,9 @@ if __name__ == "__main__":
 
     train_processed = process_s2s_data(data_folder, train_domains, 'train', batch_size, tokenizer, schema)
     val_processed_1 = process_s2s_data(data_folder, train_domains, 'eval', batch_size, tokenizer, schema)
-    val_processed_2 = process_s2s_data(data_folder, [held_out_domain], 'eval', batch_size, tokenizer, schema)
+
+    if held_out_domain != 'none':
+        val_processed_2 = process_s2s_data(data_folder, [held_out_domain], 'eval', batch_size, tokenizer, schema)
 
     if args.low_resource:
         inp_folder = os.path.join(low_resource_folder, 'spi_{}'.format(args.spis))
@@ -555,41 +557,42 @@ if __name__ == "__main__":
 
             ind_accuracies.append(acc)
 
-            correct = 0
-            total = 0
+            if held_out_domain != 'none':
+                correct = 0
+                total = 0
 
-            for i in range(0, len(val_processed_2)):
-                inp, tgt, domain = val_processed_2[i]
-                inp_ids = inp['input_ids'].to(device=device)
-                att_mask = inp['attention_mask'].to(device=device)
-                tgt = tgt.to(device=device)
+                for i in range(0, len(val_processed_2)):
+                    inp, tgt, domain = val_processed_2[i]
+                    inp_ids = inp['input_ids'].to(device=device)
+                    att_mask = inp['attention_mask'].to(device=device)
+                    tgt = tgt.to(device=device)
 
-                with torch.no_grad():
-                    logits = model(inp_ids, att_mask, tgt, domain)
+                    with torch.no_grad():
+                        logits = model(inp_ids, att_mask, tgt, domain)
 
-                scores = logits.reshape(-1, logits.shape[2])
-                preds = torch.argmax(scores, dim=1)
-                tags = tgt[:, 1:].reshape(-1)
+                    scores = logits.reshape(-1, logits.shape[2])
+                    preds = torch.argmax(scores, dim=1)
+                    tags = tgt[:, 1:].reshape(-1)
 
-                mask = tags > 0
-                total += torch.sum(mask).item()
-                correct += torch.sum(mask * (preds == tags)).item()
+                    mask = tags > 0
+                    total += torch.sum(mask).item()
+                    correct += torch.sum(mask * (preds == tags)).item()
 
-            acc = correct * 100.0 / total
-            print('Out of domain sequence accuracy: {:.2f}'.format(acc), flush=True)
+                acc = correct * 100.0 / total
+                print('Out of domain sequence accuracy: {:.2f}'.format(acc), flush=True)
 
-            if args.low_resource:
-                if acc > max(ood_accuracies):
-                    print('BEST SO FAR! Saving model...')
-                    state_dict = {'model_state_dict': model.state_dict()}
-                    save_path = os.path.join(save_folder, '{}s2s_wo_{}_best.pt'.format(save_prefix, held_out_domain))
-                    torch.save(state_dict, save_path)
-                    print('Best checkpoint saved to {}'.format(save_path), flush=True)
-                    patience_count = 0
-                else:
-                    patience_count += 1
+                if args.low_resource:
+                    if acc > max(ood_accuracies):
+                        print('BEST SO FAR! Saving model...')
+                        state_dict = {'model_state_dict': model.state_dict()}
+                        save_path = os.path.join(save_folder, '{}s2s_wo_{}_best.pt'.format(save_prefix, held_out_domain))
+                        torch.save(state_dict, save_path)
+                        print('Best checkpoint saved to {}'.format(save_path), flush=True)
+                        patience_count = 0
+                    else:
+                        patience_count += 1
 
-            ood_accuracies.append(acc)
+                ood_accuracies.append(acc)
 
             if patience_count > args.patience:
                 print('Ran out of patience. Exiting training.', flush=True)
