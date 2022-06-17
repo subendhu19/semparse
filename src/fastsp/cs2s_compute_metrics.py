@@ -12,7 +12,7 @@ def acc_process(parse):
             processed.append(w)
         elif ']' in w:
             tags = tags[:-1]
-            processed.append(w)
+            processed.append(']')
         else:
             if len(tags) > 0:
                 if 'SL:' in tags[-1]:
