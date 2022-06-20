@@ -369,6 +369,9 @@ if __name__ == "__main__":
     parser.add_argument('--spis', type=int, default=1)
     parser.add_argument('--reg_multiplier', type=float, default=0.1)
 
+    parser.add_argument('--partial_copy', action='store_true')
+    parser.add_argument('--pc_freeze', type=int, default=20)
+
     parser.add_argument('--lr', type=float, default=2e-5)
 
     args = parser.parse_args()
@@ -423,17 +426,31 @@ if __name__ == "__main__":
 
     try:
         if args.pretrained_checkpoint is not None:
-            model.load_state_dict(torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict'])
+            saved_state_dict = torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict']
+            if args.partial_copy:
+                print('Partial copying selected. Not copying pretrained decoder params', flush=True)
+                all_keys = [k for k in saved_state_dict]
+                for k in all_keys:
+                    if 'decoder.' in k:
+                        saved_state_dict.pop(k)
+            model.load_state_dict(saved_state_dict)
     except:
-        print('Couldnt load at model level. Probably a multiGPU checkpoint...')
+        print('Couldnt load at model level. Probably a multiGPU checkpoint...', flush=True)
 
     model = nn.DataParallel(model)
 
     try:
         if args.pretrained_checkpoint is not None:
-            model.load_state_dict(torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict'])
+            saved_state_dict = torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict']
+            if args.partial_copy:
+                print('Partial copying selected. Not copying pretrained decoder params', flush=True)
+                all_keys = [k for k in saved_state_dict]
+                for k in all_keys:
+                    if 'decoder.' in k:
+                        saved_state_dict.pop(k)
+            model.load_state_dict(saved_state_dict)
     except:
-        print('Couldnt load at module level. Probably a singleGPU checkpoint...')
+        print('Couldnt load at module level. Probably a singleGPU checkpoint...', flush=True)
 
     warmup_proportion = 0.1
     learning_rate = args.lr
@@ -446,19 +463,39 @@ if __name__ == "__main__":
     weight_decay = 0.01
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0)
 
-    num_train_optimization_steps = len(train_processed) * epochs
+    if not args.partial_copy:
+        num_train_optimization_steps = len(train_processed) * epochs
 
-    param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'LayerNorm.weight', 'norm.a_2', 'norm.b_2']
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
-         'weight_decay': weight_decay},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-    ]
-    warmup_steps = int(warmup_proportion * num_train_optimization_steps)
-    optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate, eps=adam_epsilon)
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps,
-                                                num_training_steps=num_train_optimization_steps)
+        param_optimizer = list(model.named_parameters())
+        no_decay = ['bias', 'LayerNorm.weight', 'norm.a_2', 'norm.b_2']
+        optimizer_grouped_parameters = [
+            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+             'weight_decay': weight_decay},
+            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        ]
+        warmup_steps = int(warmup_proportion * num_train_optimization_steps)
+        optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate, eps=adam_epsilon)
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps,
+                                                    num_training_steps=num_train_optimization_steps)
+    else:
+        for n, p in model.named_parameters():
+            if 'encoder.' in n:
+                p.requires_grad = False
+
+        num_train_optimization_steps = len(train_processed) * args.pc_freeze
+
+        param_optimizer = [(n, p) for (n, p) in model.named_parameters() if p.requires_grad is True]
+
+        no_decay = ['bias', 'LayerNorm.weight', 'norm.a_2', 'norm.b_2']
+        optimizer_grouped_parameters = [
+            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+             'weight_decay': weight_decay},
+            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        ]
+        warmup_steps = int(warmup_proportion * num_train_optimization_steps)
+        optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate, eps=adam_epsilon)
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps,
+                                                    num_training_steps=num_train_optimization_steps)
 
     # Training metrics
     ind_accuracies = [0]
@@ -471,6 +508,28 @@ if __name__ == "__main__":
     start_time = datetime.now()
 
     for epoch in range(epochs):
+
+        if args.partial_copy:
+            if epoch == args.pc_freeze:
+                print('Done with initial frozen epochs after partial copy. Optimizing full model now', flush=True)
+                num_train_optimization_steps = len(train_processed) * (epochs - args.pc_freeze)
+
+                for n, p in model.named_parameters():
+                    if 'encoder.' in n:
+                        p.requires_grad = True
+
+                param_optimizer = list(model.named_parameters())
+                no_decay = ['bias', 'LayerNorm.weight', 'norm.a_2', 'norm.b_2']
+                optimizer_grouped_parameters = [
+                    {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+                     'weight_decay': weight_decay},
+                    {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+                ]
+                warmup_steps = int(warmup_proportion * num_train_optimization_steps)
+                optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate, eps=adam_epsilon)
+                scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps,
+                                                            num_training_steps=num_train_optimization_steps)
+
         shuffle(train_processed)
         if args.low_resource:
             shuffle(reg_processed)
@@ -546,7 +605,7 @@ if __name__ == "__main__":
             print('Same domain sequence accuracy: {:.2f}'.format(acc), flush=True)
             if not args.low_resource:
                 if acc > max(ind_accuracies):
-                    print('BEST SO FAR! Saving model...')
+                    print('BEST SO FAR! Saving model...', flush=True)
                     state_dict = {'model_state_dict': model.state_dict()}
                     save_path = os.path.join(save_folder, '{}s2s_wo_{}_best.pt'.format(save_prefix, held_out_domain))
                     torch.save(state_dict, save_path)
@@ -583,7 +642,7 @@ if __name__ == "__main__":
 
                 if args.low_resource:
                     if acc > max(ood_accuracies):
-                        print('BEST SO FAR! Saving model...')
+                        print('BEST SO FAR! Saving model...', flush=True)
                         state_dict = {'model_state_dict': model.state_dict()}
                         save_path = os.path.join(save_folder, '{}s2s_wo_{}_best.pt'.format(save_prefix, held_out_domain))
                         torch.save(state_dict, save_path)
