@@ -428,38 +428,39 @@ if __name__ == "__main__":
     multi_fail = False
     single_fail = False
 
-    try:
-        if args.pretrained_checkpoint is not None:
-            saved_state_dict = torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict']
-            if args.partial_copy:
-                print('Partial copying selected. Not copying pretrained decoder params', flush=True)
-                all_keys = [k for k in saved_state_dict]
-                for k in all_keys:
-                    if 'decoder.' in k:
-                        saved_state_dict.pop(k)
-            model.load_state_dict(saved_state_dict, strict=False)
-    except:
-        print('Couldnt load at model level. Probably a multiGPU checkpoint...', flush=True)
-        single_fail = True
+    # try:
+    #     if args.pretrained_checkpoint is not None:
+    #         saved_state_dict = torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict']
+    #         if args.partial_copy:
+    #             print('Partial copying selected. Not copying pretrained decoder params', flush=True)
+    #             all_keys = [k for k in saved_state_dict]
+    #             for k in all_keys:
+    #                 if 'decoder.' in k:
+    #                     saved_state_dict.pop(k)
+    #         model.load_state_dict(saved_state_dict, strict=False)
+    # except:
+    #     print('Couldnt load at model level. Probably a multiGPU checkpoint...', flush=True)
+    #     single_fail = True
 
     model = nn.DataParallel(model)
 
-    try:
-        if args.pretrained_checkpoint is not None:
-            saved_state_dict = torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict']
-            if args.partial_copy:
-                print('Partial copying selected. Not copying pretrained decoder params', flush=True)
-                all_keys = [k for k in saved_state_dict]
-                for k in all_keys:
-                    if 'decoder.' in k:
-                        saved_state_dict.pop(k)
-            model.load_state_dict(saved_state_dict, strict=False)
-    except:
-        print('Couldnt load at module level. Probably a singleGPU checkpoint...', flush=True)
-        multi_fail = True
+    # try:
+    if args.pretrained_checkpoint is not None:
+        saved_state_dict = torch.load(os.path.join(args.pretrained_checkpoint))['model_state_dict']
+        if args.partial_copy:
+            print('Partial copying selected. Not copying pretrained decoder params', flush=True)
+            all_keys = [k for k in saved_state_dict]
+            assert 'module.' in all_keys[0]
+            for k in all_keys:
+                if 'decoder.' in k:
+                    saved_state_dict.pop(k)
+        model.load_state_dict(saved_state_dict, strict=False)
+    # except:
+    #     print('Couldnt load at module level. Probably a singleGPU checkpoint...', flush=True)
+    #     multi_fail = True
 
-    if single_fail and multi_fail:
-        sys.exit('Looks like the provided pretrained checkpoint can not be loaded. Exiting')
+    # if multi_fail:
+    #     sys.exit('Looks like the provided pretrained checkpoint can not be loaded. Exiting')
 
     warmup_proportion = 0.1
     learning_rate = args.lr
