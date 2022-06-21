@@ -374,6 +374,7 @@ if __name__ == "__main__":
     parser.add_argument('--pc_freeze', type=int, default=20)
 
     parser.add_argument('--lr', type=float, default=2e-5)
+    parser.add_argument('--random_split', type=int, default=1)
 
     args = parser.parse_args()
 
@@ -387,7 +388,7 @@ if __name__ == "__main__":
 
     save_prefix = args.save_prefix
     if args.low_resource:
-        save_prefix += 'lr_spi_{}_'.format(args.spis)
+        save_prefix += 'lr_split_{}_spi_{}_'.format(args.random_split, args.spis)
 
     if args.low_resource:
         schema = pickle.load(open(os.path.join(low_resource_folder, 'schema.p'), 'rb'))
@@ -410,7 +411,7 @@ if __name__ == "__main__":
         val_processed_2 = process_s2s_data(data_folder, [held_out_domain], 'eval', batch_size, tokenizer, schema)
 
     if args.low_resource:
-        inp_folder = os.path.join(low_resource_folder, 'spi_{}'.format(args.spis))
+        inp_folder = os.path.join(low_resource_folder, 'lr/s{}'.format(args.random_split), 'spi_{}'.format(args.spis))
         reg_processed = [a for a in train_processed]
         train_processed = process_s2s_data(inp_folder, [held_out_domain], 'train', batch_size, tokenizer, schema)
 
